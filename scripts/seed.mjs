@@ -78,6 +78,46 @@ orgEmployees.push(
 	})),
 );
 
+// --- HR policy corpus for the chatbot RAG (PRD §5.1) ---
+const POLICIES = [
+	{
+		title: "Annual Leave Policy",
+		text: `OHCS Annual Leave Policy (Civil Service Conditions of Service)
+
+Every confirmed officer of the Civil Service is entitled to thirty (30) working days of annual leave per calendar year. Annual leave accrues from January to December and must be taken within the leave year.
+
+Applications for annual leave must be submitted at least two (2) weeks before the intended start date, and must be approved by the officer's line manager, verified by the HR Directorate, and approved by a Director before the officer proceeds on leave.
+
+Up to ten (10) unused working days may be carried over into the first quarter of the following leave year. Any balance above ten days lapses on 31 March of the following year.
+
+Officers proceeding on annual leave must hand over their assignments and official documents to their line manager or a designated officer before departure.`,
+	},
+	{
+		title: "Attendance and Punctuality Policy",
+		text: `OHCS Attendance and Punctuality Policy
+
+Official working hours are 8:00 a.m. to 5:00 p.m., Monday to Friday. All staff are required to clock in on arrival and clock out on departure using the RFID access card system.
+
+A grace period of thirty (30) minutes applies to the morning clock-in. Arrivals after 8:30 a.m. are recorded as late. Persistent lateness — more than four late arrivals in a month — is reported to the HR Directorate.
+
+Staff who forget to clock out must report to the HR Directorate the next working day to regularize their record. Unexplained missing clock-outs are flagged as attendance anomalies.
+
+Officers leaving the office during working hours for official assignments must complete a movement register at the front desk.`,
+	},
+	{
+		title: "Sick Leave and Medical Policy",
+		text: `OHCS Sick Leave and Medical Policy
+
+An officer who is unable to report for duty due to illness must notify their line manager as early as possible, and in any case before 10:00 a.m. on the first day of absence.
+
+Sick leave of up to three (3) consecutive days may be taken without a medical certificate. Absence beyond three days must be supported by a medical certificate issued by a registered medical practitioner or a government hospital.
+
+Sick leave is not deducted from the annual leave entitlement. Extended medical absence is handled under the Civil Service medical boarding procedures.
+
+The HR Directorate may refer an officer for an independent medical review where sick leave patterns raise concern.`,
+	},
+];
+
 const periodStart = new Date();
 periodStart.setMonth(periodStart.getMonth() - MONTHS);
 periodStart.setHours(0, 0, 0, 0);
@@ -201,6 +241,21 @@ events.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 	}
 	const { employees: imported } = await res.json();
 	console.log(`Org imported: ${imported} employees, ${departments.length} departments`);
+}
+
+// --- Ingest the HR policy corpus for the chatbot RAG ---
+for (const doc of POLICIES) {
+	const res = await fetch(`${BASE}/api/chatbot/ingest`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(doc),
+	});
+	if (!res.ok) {
+		console.error(`Policy ingest failed for "${doc.title}" (${res.status}):`, await res.text());
+		process.exit(1);
+	}
+	const { doc_id, chunks } = await res.json();
+	console.log(`Policy ingested: ${doc_id} (${chunks} chunks)`);
 }
 
 // --- POST in batches, fail fast on the first error ---

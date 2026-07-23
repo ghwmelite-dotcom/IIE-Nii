@@ -1,7 +1,7 @@
 # IIE — Intelligent Integration Engine
 
 Event-driven process intelligence platform for OHCS, built on Cloudflare
-(Workers + D1, Queues/Workers AI/Vectorize in later phases). See `IIE_PRD.pdf`.
+(Workers + D1 + Workers AI + Vectorize + R2). See `IIE_PRD.pdf`.
 
 One Worker, modular routes — split into separate Workers only if a module outgrows it.
 
@@ -10,11 +10,13 @@ One Worker, modular routes — split into separate Workers only if a module outg
 - `src/index.ts` — Worker entrypoint (Hono) + cron `scheduled` handler (mining 6-hourly, daily checks 18:43 UTC).
 - `src/lib/events.ts` — canonical event schema (zod) + D1 insert helpers.
 - `src/lib/workflow.ts` — leave approval state machine (steps, roles, transitions).
+- `src/lib/leave-actions.ts` — leave-request creation shared by REST route + chatbot.
+- `src/lib/rag.ts` — policy doc chunking, Workers AI embeddings, Vectorize retrieval.
 - `src/mining/` — process intelligence: DFG builder, bottleneck stats, conformance checker, job orchestrator.
 - `src/jobs/daily.ts` — missing clock-out anomalies + 48h leave-step escalations.
-- `src/routes/` — `intelligence`, `attendance`, `leave`, `org` sub-apps.
+- `src/routes/` — `intelligence`, `attendance`, `leave`, `org`, `chatbot` sub-apps.
 - `migrations/` — D1 schema (events log, org tables, analysis tables).
-- `scripts/seed.mjs` — imports the org directory, then generates synthetic events (attendance, leave chains, chatbot).
+- `scripts/seed.mjs` — imports org directory + HR policy corpus, then generates synthetic events.
 
 ## Develop
 
@@ -33,6 +35,10 @@ demand with `POST /api/intelligence/run`; test either cron path via
 `wrangler dev --test-scheduled` +
 `curl "http://localhost:8787/__scheduled?cron=43 18 * * *"`.
 
+Note: Workers AI and Vectorize have no local simulation — they always hit the
+real services (`remote: true` in `wrangler.jsonc`), even under `wrangler dev`.
+AI usage is billed against the free tier (10k neurons/day).
+
 ## Endpoints
 
 | Method | Path | Purpose |
@@ -47,11 +53,23 @@ demand with `POST /api/intelligence/run`; test either cron path via
 | POST | `/api/leave/:id/transition` | approve / reject (with reason) / cancel |
 | GET | `/api/leave/:id/status` | Request status + transition history |
 | POST | `/api/org/import` | Bulk upsert departments + employees |
+| POST | `/api/chatbot/message` | Chat: policy RAG, attendance, balance, leave requests |
+| POST | `/api/chatbot/ingest` | Add a policy document to the RAG corpus |
 | GET | `/api/intelligence/process-map?source=` | Latest discovered process model (DFG + variants) |
 | GET | `/api/intelligence/bottlenecks?source=` | Transition duration stats, flagged pairs first |
 | GET | `/api/intelligence/conformance` | Deviations vs. the prescribed leave workflow |
 | POST | `/api/intelligence/run` | Run the mining job on demand |
 | GET | `/health` | Liveness |
+
+## Chatbot design
+
+Intent routing is hybrid: unambiguous first-person asks ("how many days was I
+late") go through keyword rules with no LLM call; everything else is classified
+by `@cf/meta/llama-3.2-3b-instruct`. Leave-request dates are only ever taken
+from the user's own message (never model-invented). Policy answers are RAG over
+Vectorize + `@cf/baai/bge-base-en-v1.5` embeddings, answered by
+`@cf/meta/llama-3.3-70b-instruct-fp8-fast` strictly from retrieved excerpts.
+Models are configurable via `vars` in `wrangler.jsonc`.
 
 ## Deploy
 
@@ -67,7 +85,6 @@ npm run seed -- --base https://iie.<your-subdomain>.workers.dev
 
 ## Next phases
 
-- Chatbot (Workers AI + Vectorize RAG over policy docs in R2)
+- React dashboard as Workers static assets (chat widget embeds there)
 - Queue fanout from ingestion (requires Workers Paid plan)
-- React dashboard as Workers static assets
 - Auth (Cloudflare Access / JWT); prescribed-model + thresholds into KV config; AI recommendations

@@ -5,6 +5,7 @@ import intelligence from "./routes/intelligence";
 import attendance from "./routes/attendance";
 import leave from "./routes/leave";
 import org from "./routes/org";
+import chatbot from "./routes/chatbot";
 import { runMiningJob } from "./mining/job";
 import { runDailyChecks } from "./jobs/daily";
 
@@ -16,6 +17,7 @@ app.route("/api/intelligence", intelligence);
 app.route("/api/attendance", attendance);
 app.route("/api/leave", leave);
 app.route("/api/org", org);
+app.route("/api/chatbot", chatbot);
 
 // Ingest a single event into the Unified Event Log.
 app.post("/api/events", async (c) => {

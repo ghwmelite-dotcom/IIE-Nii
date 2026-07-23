@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { insertEvents, toStoredEvent } from "../lib/events";
+import { createLeaveRequest } from "../lib/leave-actions";
 import { STEP_RULES, isLeaveStep } from "../lib/workflow";
 import type { LeaveStep } from "../lib/workflow";
 
@@ -54,36 +55,8 @@ app.post("/request", async (c) => {
 		return c.json({ error: "Unknown employee" }, 404);
 	}
 
-	const requestId = crypto.randomUUID();
-	const now = new Date().toISOString();
-	const firstStep: LeaveStep = "manager_review";
-
-	await c.env.DB.batch([
-		c.env.DB.prepare(
-			"INSERT INTO leave_requests (request_id, employee_id, type, start_date, end_date, status, current_step) VALUES (?, ?, ?, ?, ?, 'pending', ?)",
-		).bind(requestId, employee.employee_id, parsed.data.type, parsed.data.start_date, parsed.data.end_date, firstStep),
-		c.env.DB.prepare(
-			`INSERT INTO workflow_transitions (transition_id, request_id, from_step, to_step, actor_id, "timestamp") VALUES (?, ?, 'submitted', ?, ?, ?)`,
-		).bind(crypto.randomUUID(), requestId, firstStep, employee.employee_id, now),
-	]);
-	await insertEvents(c.env.DB, [
-		toStoredEvent({
-			case_id: requestId,
-			activity: "leave_submitted",
-			resource: employee.employee_id,
-			timestamp: now,
-			source_system: "LEAVE_WORKFLOW",
-			metadata: {
-				request_id: requestId,
-				department: employee.department_id,
-				leave_type: parsed.data.type,
-				from_step: "submitted",
-				to_step: firstStep,
-			},
-		}),
-	]);
-
-	return c.json({ request_id: requestId, status: "pending", current_step: firstStep }, 201);
+	const { requestId, currentStep } = await createLeaveRequest(c.env.DB, employee, parsed.data);
+	return c.json({ request_id: requestId, status: "pending", current_step: currentStep }, 201);
 });
 
 // Advance the workflow: approve | reject | cancel (PRD §5.3).

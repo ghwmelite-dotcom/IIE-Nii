@@ -12,7 +12,10 @@
   },
 
   "vars": {
-    "ENVIRONMENT": "local"
+    "ENVIRONMENT": "local",
+    "AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "AI_INTENT_MODEL": "@cf/meta/llama-3.2-3b-instruct",
+    "AI_EMBED_MODEL": "@cf/baai/bge-base-en-v1.5"
   },
 
   // Process mining every 6h (PRD §4.2); daily anomaly/escalation checks at 18:43
@@ -28,5 +31,15 @@
       "database_id": "14cf9a00-3266-4edd-a224-d8411fd0daec",
       "migrations_dir": "./migrations"
     }
+  ],
+
+  // Chatbot RAG (PRD §5.1): policy docs in R2, embeddings in Vectorize.
+  // AI + Vectorize have no local simulation — they always hit the real services.
+  "ai": { "binding": "AI", "remote": true },
+  "vectorize": [
+    { "binding": "VECTOR_INDEX", "index_name": "iie-policy-index", "remote": true }
+  ],
+  "r2_buckets": [
+    { "binding": "POLICY_DOCS", "bucket_name": "iie-policy-docs" }
   ]
 }
