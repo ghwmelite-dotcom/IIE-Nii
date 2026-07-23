@@ -57,7 +57,7 @@ export default function Intelligence() {
 			{/* Process map with duration overlay */}
 			<section className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 				<h2 className="mb-1 text-sm font-semibold text-slate-700">Discovered process map</h2>
-				<p className="mb-2 text-xs text-slate-400">Edges show case count · median transition time. Red = over SLA threshold.</p>
+				<p className="mb-2 text-xs text-slate-400">Pills show cases · median transition time. Red pills = over SLA threshold.</p>
 				{m ? <ProcessMap nodes={m.graph.nodes} edges={m.graph.edges} edgeStats={edgeStats} /> : <p className="text-slate-400">Loading…</p>}
 				{m && <p className="mt-2 text-right text-xs text-slate-400">mined {new Date(m.created_at).toLocaleString()}</p>}
 			</section>

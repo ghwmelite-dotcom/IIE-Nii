@@ -12,14 +12,21 @@ interface Props {
 	edgeStats?: Map<string, EdgeStat>;
 }
 
+const NODE_W = 160;
+const NODE_H = 52;
+const X_GAP = 300;
+const Y_GAP = 100;
+
+function accentFor(activity: string): string {
+	if (activity === "rejected" || activity === "cancelled") return "#e11d48";
+	if (activity === "completed") return "#059669";
+	if (activity === "leave_submitted" || activity === "clock_in") return "#4f46e5";
+	return "#334155";
+}
+
 export function formatDuration(ms: number): string {
 	return ms >= 86_400_000 ? `${(ms / 86_400_000).toFixed(1)}d` : `${Math.max(1, Math.round(ms / 3_600_000))}h`;
 }
-
-const NODE_W = 150;
-const NODE_H = 46;
-const X_GAP = 280;
-const Y_GAP = 90;
 
 /** Layered layout: longest-path ranks from source nodes. Self-loops and cycles can't stall it. */
 function layout(nodes: DFGNode[], edges: DFGEdge[]) {
@@ -48,12 +55,35 @@ function layout(nodes: DFGNode[], edges: DFGEdge[]) {
 
 	const pos = new Map<string, { x: number; y: number }>();
 	for (const [r, activities] of byRank) {
-		activities.forEach((activity, i) => pos.set(activity, { x: 20 + r * X_GAP, y: 30 + i * Y_GAP }));
+		activities.forEach((activity, i) => pos.set(activity, { x: 40 + r * X_GAP, y: 50 + i * Y_GAP }));
 	}
 
 	const maxRank = Math.max(0, ...byRank.keys());
 	const maxInRank = Math.max(1, ...[...byRank.values()].map((a) => a.length));
-	return { pos, width: 20 + (maxRank + 1) * X_GAP + 40, height: 30 + maxInRank * Y_GAP + 20 };
+	return { pos, width: 40 + maxRank * X_GAP + NODE_W + 60, height: 50 + maxInRank * Y_GAP + 40 };
+}
+
+/** Off-the-line label: a small pill floating clear of the edge it describes. */
+function EdgeLabel({ x, y, text, flagged }: { x: number; y: number; text: string; flagged: boolean }) {
+	const w = text.length * 6.2 + 18;
+	return (
+		<g transform={`translate(${x}, ${y})`}>
+			<rect
+				x={-w / 2}
+				y={-11}
+				width={w}
+				height={21}
+				rx={10.5}
+				fill={flagged ? "#dc2626" : "white"}
+				stroke={flagged ? "#b91c1c" : "#e2e8f0"}
+				strokeWidth={1}
+			/>
+			<text x={0} y={4} textAnchor="middle" fontSize={11} fontWeight={flagged ? 600 : 500} fill={flagged ? "white" : "#475569"}>
+				{text}
+			</text>
+			<title>{flagged ? "Over SLA threshold — " : ""}{text}</title>
+		</g>
+	);
 }
 
 export default function ProcessMap({ nodes, edges, edgeStats }: Props) {
@@ -63,20 +93,26 @@ export default function ProcessMap({ nodes, edges, edgeStats }: Props) {
 	const maxEdge = Math.max(1, ...edges.map((e) => e.count));
 
 	return (
-		<svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ minWidth: 400 }}>
+		<svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ minWidth: 480 }}>
 			<defs>
-				<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-					<path d="M2 1L8 5L2 9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+				<pattern id="map-dots" width="26" height="26" patternUnits="userSpaceOnUse">
+					<circle cx="1.5" cy="1.5" r="1.5" fill="#eef2f7" />
+				</pattern>
+				<marker id="map-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+					<path d="M2 1L8 5L2 9" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
 				</marker>
 			</defs>
+
+			<rect width={width} height={height} fill="url(#map-dots)" rx="12" />
 
 			{edges.map((e, i) => {
 				const a = pos.get(e.from)!;
 				const b = pos.get(e.to)!;
 				const stat = edgeStats?.get(`${e.from} -> ${e.to}`);
-				const color = stat?.flagged ? "#dc2626" : "#94a3b8";
-				const strokeWidth = 1 + (e.count / maxEdge) * 5;
-				const label = stat ? `${e.count} · ${formatDuration(stat.median_ms)} median` : `${e.count}`;
+				const flagged = stat?.flagged === true;
+				const color = flagged ? "#dc2626" : "#94a3b8";
+				const strokeWidth = 1.2 + (e.count / maxEdge) * 4;
+				const label = stat ? `${e.count} · ${formatDuration(stat.median_ms)}` : `${e.count}`;
 
 				if (e.from === e.to) {
 					// Self-loop arc above the node
@@ -85,15 +121,13 @@ export default function ProcessMap({ nodes, edges, edgeStats }: Props) {
 					return (
 						<g key={i} style={{ color }}>
 							<path
-								d={`M ${cx - 20} ${cy} C ${cx - 20} ${cy - 40}, ${cx + 20} ${cy - 40}, ${cx + 20} ${cy}`}
+								d={`M ${cx - 26} ${cy} C ${cx - 26} ${cy - 52}, ${cx + 26} ${cy - 52}, ${cx + 26} ${cy}`}
 								fill="none"
 								stroke={color}
 								strokeWidth={strokeWidth}
-								markerEnd="url(#arrow)"
+								markerEnd="url(#map-arrow)"
 							/>
-							<text x={cx} y={cy - 30} textAnchor="middle" fontSize="11" fill={color}>
-								{label}
-							</text>
+							<EdgeLabel x={cx} y={cy - 56} text={label} flagged={flagged} />
 						</g>
 					);
 				}
@@ -103,6 +137,11 @@ export default function ProcessMap({ nodes, edges, edgeStats }: Props) {
 				const x2 = b.x;
 				const y2 = b.y + NODE_H / 2;
 				const midX = (x1 + x2) / 2;
+				const midY = (y1 + y2) / 2;
+				// Push the pill off the line: up for straight runs, perpendicular for diagonals.
+				const diagonal = Math.abs(y2 - y1) > 4;
+				const lx = midX + (diagonal ? 26 : 0);
+				const ly = midY - (diagonal ? 14 : 26);
 				return (
 					<g key={i} style={{ color }}>
 						<path
@@ -110,36 +149,25 @@ export default function ProcessMap({ nodes, edges, edgeStats }: Props) {
 							fill="none"
 							stroke={color}
 							strokeWidth={strokeWidth}
-							markerEnd="url(#arrow)"
+							markerEnd="url(#map-arrow)"
 						/>
-						<text
-							x={midX}
-							y={(y1 + y2) / 2 - 8}
-							textAnchor="middle"
-							fontSize="11"
-							fontWeight={stat?.flagged ? 700 : 400}
-							fill={color}
-							paintOrder="stroke"
-							stroke="white"
-							strokeWidth={4}
-							strokeLinejoin="round"
-						>
-							{label}
-						</text>
+						<EdgeLabel x={lx} y={ly} text={label} flagged={flagged} />
 					</g>
 				);
 			})}
 
 			{nodes.map((n) => {
 				const p = pos.get(n.activity)!;
+				const accent = accentFor(n.activity);
 				const label = n.activity.length > 20 ? `${n.activity.slice(0, 19)}…` : n.activity;
 				return (
 					<g key={n.activity} transform={`translate(${p.x}, ${p.y})`}>
-						<rect width={NODE_W} height={NODE_H} rx="8" fill="#1e293b" />
-						<text x={NODE_W / 2} y={20} textAnchor="middle" fontSize="12" fontWeight="600" fill="white">
+						<rect width={NODE_W} height={NODE_H} rx="10" fill="white" stroke="#e2e8f0" />
+						<rect x={7} y={9} width={4} height={NODE_H - 18} rx="2" fill={accent} />
+						<text x={20} y={22} fontSize="12" fontWeight="600" fill="#0f172a">
 							{label}
 						</text>
-						<text x={NODE_W / 2} y={36} textAnchor="middle" fontSize="10" fill="#94a3b8">
+						<text x={20} y={39} fontSize="10" fill="#94a3b8">
 							{n.count} events
 						</text>
 						<title>{n.activity}</title>
