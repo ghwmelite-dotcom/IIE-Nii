@@ -41,5 +41,14 @@
   ],
   "r2_buckets": [
     { "binding": "POLICY_DOCS", "bucket_name": "iie-policy-docs" }
-  ]
+  ],
+
+  // Dashboard SPA (web/, built with Vite). The Worker delegates non-/api paths
+  // to the ASSETS binding (see notFound in src/index.ts), which applies the
+  // single-page-application fallback for client-side navigation.
+  "assets": {
+    "directory": "./web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  }
 }

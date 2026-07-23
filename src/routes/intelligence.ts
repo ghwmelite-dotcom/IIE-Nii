@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { runMiningJob } from "../mining/job";
+import { generateRecommendations } from "../lib/recommendations";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -100,6 +101,12 @@ app.get("/conformance", async (c) => {
 app.post("/run", async (c) => {
 	const summary = await runMiningJob(c.env);
 	return c.json(summary);
+});
+
+// Rule-based decision-support feed (PRD §6.4, §10).
+app.get("/recommendations", async (c) => {
+	const recommendations = await generateRecommendations(c.env);
+	return c.json({ generated_at: new Date().toISOString(), recommendations });
 });
 
 export default app;

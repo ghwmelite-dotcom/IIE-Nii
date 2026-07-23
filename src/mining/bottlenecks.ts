@@ -40,11 +40,12 @@ interface PairDurationRow {
 const HOUR_MS = 3600_000;
 const DAY_MS = 24 * HOUR_MS;
 
-/** Flag pairs whose median duration exceeds the threshold for their source. */
+/** Flag pairs whose median duration exceeds the threshold for their source.
+ *  Chat is deliberately unflagged: gaps between same-day queries are user
+ *  think-time, not process delays. */
 const FLAG_THRESHOLDS_MS: Record<string, number> = {
 	LEAVE_WORKFLOW: 2 * DAY_MS, // approvals should move within ~2 days
 	ATTENDANCE: 12 * HOUR_MS, // clock_in -> clock_out beyond 12h is suspicious
-	CHATBOT: 5 * 60_000, // chat turns should be near-instant
 };
 
 function percentile(sorted: number[], p: number): number {

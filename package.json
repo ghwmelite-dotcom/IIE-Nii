@@ -11,7 +11,9 @@
     "check": "tsc --noEmit",
     "db:migrate:local": "wrangler d1 migrations apply iie-event-log --local",
     "db:migrate:remote": "wrangler d1 migrations apply iie-event-log --remote",
-    "seed": "node scripts/seed.mjs"
+    "seed": "node scripts/seed.mjs",
+    "build:web": "npm --prefix web run build",
+    "check:web": "npm --prefix web run typecheck"
   },
   "dependencies": {
     "hono": "^4.12.31",

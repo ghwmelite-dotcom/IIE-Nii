@@ -123,6 +123,11 @@ periodStart.setMonth(periodStart.getMonth() - MONTHS);
 periodStart.setHours(0, 0, 0, 0);
 const periodEnd = new Date();
 
+// Case ids are namespaced by seed so runs with different --seed values can
+// never merge traces in the event log. Re-running with the SAME seed is still
+// additive (duplicates) — reset the DB first if you want a clean log.
+const NS = `s${SEED}`;
+
 const events = [];
 const emit = (e) => events.push(e);
 
@@ -131,7 +136,7 @@ for (const emp of employees) {
 	for (const d = new Date(periodStart); d <= periodEnd; d.setDate(d.getDate() + 1)) {
 		if (d.getDay() === 0 || d.getDay() === 6) continue;
 		const dateStr = d.toISOString().slice(0, 10);
-		const caseId = `att-${emp.id}-${dateStr}`;
+		const caseId = `att-${NS}-${emp.id}-${dateStr}`;
 
 		const late = rand() < 0.12;
 		const inHour = clamp(late ? 9 + rand() : 8 + gauss() * 0.5, 7, 11);
@@ -177,7 +182,7 @@ let leaveSeq = 0;
 const leaveCount = Math.round(EMPLOYEES * MONTHS * 0.35);
 for (let i = 0; i < leaveCount; i++) {
 	const emp = pick(employees);
-	const reqId = `LR-${String(++leaveSeq).padStart(5, "0")}`;
+	const reqId = `LR-${NS}-${String(++leaveSeq).padStart(5, "0")}`;
 	const type = pick(LEAVE_TYPES);
 	let t = periodStart.getTime() + rand() * (periodEnd.getTime() - periodStart.getTime());
 	const at = () => new Date(t).toISOString();
@@ -216,7 +221,7 @@ for (const d = new Date(periodStart); d <= periodEnd; d.setDate(d.getDate() + 1)
 		const at = new Date(d);
 		at.setHours(8 + Math.floor(rand() * 9), Math.floor(rand() * 60), 0, 0);
 		emit({
-			case_id: `chat-${emp.id}-${d.toISOString().slice(0, 10)}`,
+			case_id: `chat-${NS}-${emp.id}-${d.toISOString().slice(0, 10)}`,
 			activity: "chat_query",
 			resource: emp.id,
 			timestamp: at.toISOString(),

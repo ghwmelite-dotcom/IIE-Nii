@@ -24,6 +24,8 @@ export interface Deviation {
 	score: number;
 }
 
+const TERMINAL_ACTIVITIES = new Set(["completed", "rejected", "cancelled"]);
+
 /** events must arrive ordered by case_id, then timestamp. */
 export function checkLeaveConformance(events: TraceEvent[]): Deviation[] {
 	const traces = new Map<string, string[]>();
@@ -38,6 +40,8 @@ export function checkLeaveConformance(events: TraceEvent[]): Deviation[] {
 
 	const deviations: Deviation[] = [];
 	for (const [caseId, activities] of traces) {
+		// In-flight cases haven't finished — not yet judgeable as deviations.
+		if (!TERMINAL_ACTIVITIES.has(activities[activities.length - 1])) continue;
 		deviations.push(...checkTrace(caseId, activities));
 	}
 	return deviations;

@@ -6,6 +6,7 @@ import attendance from "./routes/attendance";
 import leave from "./routes/leave";
 import org from "./routes/org";
 import chatbot from "./routes/chatbot";
+import stats from "./routes/stats";
 import { runMiningJob } from "./mining/job";
 import { runDailyChecks } from "./jobs/daily";
 
@@ -18,6 +19,7 @@ app.route("/api/attendance", attendance);
 app.route("/api/leave", leave);
 app.route("/api/org", org);
 app.route("/api/chatbot", chatbot);
+app.route("/api/stats", stats);
 
 // Ingest a single event into the Unified Event Log.
 app.post("/api/events", async (c) => {
@@ -66,6 +68,30 @@ app.get("/api/events", async (c) => {
 
 	const events = results.map((row) => ({ ...row, metadata: JSON.parse(row.metadata) as unknown }));
 	return c.json({ case_id: caseId, count: events.length, events });
+});
+
+// Latest events across all systems — the dashboard's live feed (polled; PRD's
+// SSE variant /api/events/stream is a later refinement).
+app.get("/api/events/recent", async (c) => {
+	const limit = Math.min(Number(c.req.query("limit") ?? 25) || 25, 200);
+	const { results } = await c.env.DB.prepare(
+		`SELECT event_id, case_id, activity, resource, "timestamp", source_system, metadata
+		 FROM events ORDER BY "timestamp" DESC, rowid DESC LIMIT ?`,
+	)
+		.bind(limit)
+		.all<EventRow>();
+
+	const events = results.map((row) => ({ ...row, metadata: JSON.parse(row.metadata) as unknown }));
+	return c.json({ events });
+});
+
+app.notFound((c) => {
+	// Unknown API paths get a JSON 404; everything else is the SPA's job —
+	// delegate to static assets, which serves index.html under the SPA fallback.
+	if (c.req.path.startsWith("/api/") || c.req.path === "/health") {
+		return c.json({ error: "Not found" }, 404);
+	}
+	return c.env.ASSETS.fetch(c.req.raw);
 });
 
 app.onError((err, c) => {

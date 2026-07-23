@@ -12,22 +12,35 @@ One Worker, modular routes — split into separate Workers only if a module outg
 - `src/lib/workflow.ts` — leave approval state machine (steps, roles, transitions).
 - `src/lib/leave-actions.ts` — leave-request creation shared by REST route + chatbot.
 - `src/lib/rag.ts` — policy doc chunking, Workers AI embeddings, Vectorize retrieval.
+- `src/lib/recommendations.ts` — rule-based decision-support generator (PRD §6.4).
 - `src/mining/` — process intelligence: DFG builder, bottleneck stats, conformance checker, job orchestrator.
 - `src/jobs/daily.ts` — missing clock-out anomalies + 48h leave-step escalations.
-- `src/routes/` — `intelligence`, `attendance`, `leave`, `org`, `chatbot` sub-apps.
+- `src/routes/` — `intelligence`, `attendance`, `leave`, `org`, `chatbot`, `stats` sub-apps.
+- `web/` — dashboard SPA (Vite + React + Tailwind), served as Workers static assets.
 - `migrations/` — D1 schema (events log, org tables, analysis tables).
 - `scripts/seed.mjs` — imports org directory + HR policy corpus, then generates synthetic events.
 
 ## Develop
 
 ```sh
-npm install
+npm install && npm --prefix web install
 npm run db:migrate:local   # create + migrate local D1
-npm run dev                # http://localhost:8787
+npm run build:web          # build the dashboard into web/dist (required once)
+npm run dev                # http://localhost:8787 — API + dashboard together
 npm run seed -- --employees 10 --months 1   # smoke-test dataset
 npm run seed               # full dataset: 50 employees, 6 months
 npm run check              # typecheck
 ```
+
+The seed is additive: case ids are namespaced by `--seed`, so different seeds
+coexist, but re-running with the same seed duplicates events. To start over:
+stop the dev server, delete rows via `wrangler d1 execute iie-event-log --local
+--command "DELETE FROM events; DELETE FROM attendance_records; DELETE FROM
+workflow_transitions; DELETE FROM leave_requests;"` (children before parents),
+then re-seed.
+
+For frontend iteration with hot reload: keep `npm run dev` running and also run
+`npm --prefix web run dev` (Vite proxies /api to the Worker on :8787).
 
 Regenerate `worker-configuration.d.ts` after changing bindings: `npm run types`.
 Crons: mining every 6h, daily checks 18:43 UTC (Accra = UTC). Trigger mining on
@@ -58,8 +71,22 @@ AI usage is billed against the free tier (10k neurons/day).
 | GET | `/api/intelligence/process-map?source=` | Latest discovered process model (DFG + variants) |
 | GET | `/api/intelligence/bottlenecks?source=` | Transition duration stats, flagged pairs first |
 | GET | `/api/intelligence/conformance` | Deviations vs. the prescribed leave workflow |
+| GET | `/api/intelligence/recommendations` | Rule-based decision-support feed |
 | POST | `/api/intelligence/run` | Run the mining job on demand |
+| GET | `/api/events/recent?limit=N` | Latest events across systems (dashboard feed) |
+| GET | `/api/stats/overview` | Headline numbers (employees, events, open leave, flags) |
+| GET | `/api/stats/attendance-daily?days=N` | Per-day attendance counts for the heatmap |
+| GET | `/api/stats/leave-pipeline` | Leave cases grouped by waiting step |
 | GET | `/health` | Liveness |
+
+## Dashboard
+
+Three views: **Operations** (stat cards, polled live event feed, 30-day
+attendance heatmap, leave pipeline), **Process Intelligence** (interactive SVG
+process map with bottleneck-flagged edges, variants, conformance), and
+**Decision Support** (recommendation cards). The chat widget floats bottom-right
+on every view. Non-`/api` paths fall back to the SPA (`ASSETS` binding +
+`not_found_handling: single-page-application`).
 
 ## Chatbot design
 
@@ -85,6 +112,7 @@ npm run seed -- --base https://iie.<your-subdomain>.workers.dev
 
 ## Next phases
 
-- React dashboard as Workers static assets (chat widget embeds there)
+- Auth (Cloudflare Access / JWT) — chat widget and APIs currently trust a typed employee ID
 - Queue fanout from ingestion (requires Workers Paid plan)
-- Auth (Cloudflare Access / JWT); prescribed-model + thresholds into KV config; AI recommendations
+- SSE live feed (`/api/events/stream`) to replace dashboard polling
+- AI narrative layer over the rule-based recommendations; prescribed-model + thresholds into KV config
