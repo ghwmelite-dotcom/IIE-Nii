@@ -139,7 +139,7 @@ export default function ProcessMap({ nodes, edges, edgeStats }: Props) {
 				const midY = (y1 + y2) / 2;
 
 				// Skip edges (spanning more than one rank) arc above intermediate nodes.
-				if (x2 - x1 > X_GAP * 1.5) {
+				if (x2 - x1 > X_GAP) {
 					const arcTop = Math.min(a.y, b.y) - 60;
 					const apexY = (midY + arcTop) / 2;
 					return (
