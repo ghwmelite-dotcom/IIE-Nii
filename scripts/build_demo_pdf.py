@@ -1,39 +1,39 @@
 #!/usr/bin/env python
-"""Render DEMO_GUIDE.md into a presentation-styled HTML file (demo-guide.html).
+"""Render a Markdown document into a presentation-styled HTML file.
 
-Run with the project venv:  .venv-pdf/Scripts/python scripts/build_demo_pdf.py
-Then print to PDF with headless Edge/Chrome (see README or the npm script).
+Usage:  .venv-pdf/Scripts/python scripts/build_demo_pdf.py [input.md] [output.html]
+Defaults: DEMO_GUIDE.md -> demo-guide.html (and inlines the architecture SVG).
+Then print to PDF with headless Edge/Chrome.
 """
 
+import sys
 from pathlib import Path
 
 import markdown
 
 ROOT = Path(__file__).resolve().parent.parent
-MD = ROOT / "DEMO_GUIDE.md"
+MD = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "DEMO_GUIDE.md"
+OUT = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "demo-guide.html"
 SVG = ROOT / "iie_cloudflare_architecture.svg"
-OUT = ROOT / "demo-guide.html"
 
 body = markdown.markdown(
     MD.read_text(encoding="utf-8"),
     extensions=["tables", "fenced_code", "sane_lists"],
 )
 
-# Inline the architecture diagram right after the opening pitch section.
-svg = SVG.read_text(encoding="utf-8")
-svg = svg[svg.index("<svg"):]  # drop any XML prolog
-figure = f"""
+# Inline the architecture diagram where the demo guide expects it.
+marker = "<h2>2. Pre-demo checklist"
+idx = body.find(marker)
+if idx != -1 and SVG.exists():
+    svg = SVG.read_text(encoding="utf-8")
+    svg = svg[svg.index("<svg"):]  # drop any XML prolog
+    figure = f"""
 <figure class="arch">
   {svg}
   <figcaption>System architecture — source subsystems publish canonical events into the unified log; mining and the dashboard consume it.</figcaption>
 </figure>
 """
-marker = "<h2>2. Pre-demo checklist"
-idx = body.find(marker)
-if idx != -1:
     body = body[:idx] + figure + body[idx:]
-else:
-    raise SystemExit("insertion point for architecture figure not found")
 
 CSS = """
 @page { size: A4; margin: 16mm 14mm 18mm 14mm; }
@@ -82,7 +82,7 @@ figcaption { font-size: 8.5pt; color: #64748b; margin-top: 2mm; }
 
 html = f"""<!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>IIE Demonstration Guide</title><style>{CSS}</style></head>
+<head><meta charset="utf-8"><title>{MD.stem.replace("_", " ")}</title><style>{CSS}</style></head>
 <body>
 {body}
 </body>

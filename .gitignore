@@ -5,3 +5,4 @@ dist/
 *.tsbuildinfo
 .venv-pdf/
 demo-guide.html
+technical-report.html
