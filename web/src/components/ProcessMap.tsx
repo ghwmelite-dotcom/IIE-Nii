@@ -18,8 +18,8 @@ export function formatDuration(ms: number): string {
 
 const NODE_W = 150;
 const NODE_H = 46;
-const X_GAP = 200;
-const Y_GAP = 80;
+const X_GAP = 280;
+const Y_GAP = 90;
 
 /** Layered layout: longest-path ranks from source nodes. Self-loops and cycles can't stall it. */
 function layout(nodes: DFGNode[], edges: DFGEdge[]) {
@@ -112,7 +112,18 @@ export default function ProcessMap({ nodes, edges, edgeStats }: Props) {
 							strokeWidth={strokeWidth}
 							markerEnd="url(#arrow)"
 						/>
-						<text x={midX} y={(y1 + y2) / 2 - 6} textAnchor="middle" fontSize="11" fontWeight={stat?.flagged ? 700 : 400} fill={color}>
+						<text
+							x={midX}
+							y={(y1 + y2) / 2 - 8}
+							textAnchor="middle"
+							fontSize="11"
+							fontWeight={stat?.flagged ? 700 : 400}
+							fill={color}
+							paintOrder="stroke"
+							stroke="white"
+							strokeWidth={4}
+							strokeLinejoin="round"
+						>
 							{label}
 						</text>
 					</g>

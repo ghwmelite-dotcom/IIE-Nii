@@ -40,11 +40,15 @@ export default function Intelligence() {
 						{s.toLowerCase().replace("_", " ")}
 					</button>
 				))}
-				<div className="ml-auto flex gap-2 text-xs">
-					<span className="rounded bg-white px-2 py-1 shadow-sm border border-slate-200">{m?.case_count ?? "…"} cases</span>
-					<span className="rounded bg-white px-2 py-1 shadow-sm border border-slate-200">{m?.event_count ?? "…"} events</span>
-					<span className="rounded bg-white px-2 py-1 shadow-sm border border-slate-200">{m?.variants.length ?? "…"} variants</span>
-					<span className={`rounded px-2 py-1 shadow-sm border ${flaggedCount > 0 ? "border-red-200 bg-red-50 text-red-800" : "border-slate-200 bg-white"}`}>
+				<div className="ml-auto flex gap-2 text-xs font-medium">
+					<span className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-indigo-800">{m?.case_count ?? "…"} cases</span>
+					<span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700">{m?.event_count ?? "…"} events</span>
+					<span className="rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1 text-violet-800">{m?.variants.length ?? "…"} variants</span>
+					<span
+						className={`rounded-lg border px-2.5 py-1 ${
+							flaggedCount > 0 ? "border-red-200 bg-red-50 text-red-800" : "border-slate-200 bg-white text-slate-500"
+						}`}
+					>
 						{flaggedCount} flagged
 					</span>
 				</div>
@@ -61,27 +65,36 @@ export default function Intelligence() {
 			<div className="grid gap-6 lg:grid-cols-2">
 				{/* Bottlenecks */}
 				<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-					<h2 className="mb-3 text-sm font-semibold text-slate-700">Bottlenecks</h2>
-					<table className="w-full text-sm">
-						<thead>
-							<tr className="text-left text-xs uppercase tracking-wide text-slate-400">
-								<th className="pb-2">Transition</th>
-								<th className="pb-2 text-right">n</th>
-								<th className="pb-2 text-right">Median</th>
-								<th className="pb-2 text-right">P95</th>
-							</tr>
-						</thead>
-						<tbody>
-							{(bottlenecks.data?.bottlenecks ?? []).map((b) => (
-								<tr key={b.id} className={b.flagged ? "bg-red-50 font-medium text-red-900" : "text-slate-600"}>
-									<td className="py-1 pr-2">{b.activity_pair}</td>
-									<td className="py-1 text-right">{b.count}</td>
-									<td className="py-1 text-right">{DAYS(b.median_ms)}d</td>
-									<td className="py-1 text-right">{DAYS(b.p95_ms)}d</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
+					<h2 className="mb-1 text-sm font-semibold text-slate-700">Bottlenecks</h2>
+					<p className="mb-3 text-xs text-slate-400">Median vs P95 transition time per step — bars scale to the slowest.</p>
+					{(() => {
+						const rows = bottlenecks.data?.bottlenecks ?? [];
+						const maxP95 = Math.max(1, ...rows.map((b) => b.p95_ms));
+						return (
+							<ul className="space-y-2.5">
+								{rows.map((b) => (
+									<li key={b.id}>
+										<div className="flex items-baseline justify-between text-sm">
+											<span className={b.flagged ? "font-semibold text-red-800" : "text-slate-700"}>{b.activity_pair}</span>
+											<span className={`text-xs ${b.flagged ? "font-semibold text-red-700" : "text-slate-500"}`}>
+												{b.count} · {DAYS(b.median_ms)}d median · {DAYS(b.p95_ms)}d p95
+											</span>
+										</div>
+										<div className="mt-1 flex h-2 w-full gap-0.5">
+											<div
+												className={`h-full rounded-l-full ${b.flagged ? "bg-red-500" : "bg-slate-400"}`}
+												style={{ width: `${(b.median_ms / maxP95) * 100}%` }}
+											/>
+											<div
+												className={`h-full rounded-r-full ${b.flagged ? "bg-red-200" : "bg-slate-200"}`}
+												style={{ width: `${((b.p95_ms - b.median_ms) / maxP95) * 100}%` }}
+											/>
+										</div>
+									</li>
+								))}
+							</ul>
+						);
+					})()}
 				</section>
 
 				<div className="space-y-6">
