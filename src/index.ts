@@ -1,10 +1,14 @@
 import { Hono } from "hono";
 import { canonicalEventSchema, eventBatchSchema, insertEvents, toStoredEvent } from "./lib/events";
 import type { EventRow } from "./lib/events";
+import intelligence from "./routes/intelligence";
+import { runMiningJob } from "./mining/job";
 
 const app = new Hono<{ Bindings: Env }>();
 
 app.get("/health", (c) => c.json({ status: "ok", environment: c.env.ENVIRONMENT }));
+
+app.route("/api/intelligence", intelligence);
 
 // Ingest a single event into the Unified Event Log.
 app.post("/api/events", async (c) => {
@@ -60,4 +64,10 @@ app.onError((err, c) => {
 	return c.json({ error: "Internal server error" }, 500);
 });
 
-export default app;
+export default {
+	fetch: app.fetch,
+	// Process mining on the event log, 6-hourly (PRD §4.2).
+	async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+		ctx.waitUntil(runMiningJob(env));
+	},
+} satisfies ExportedHandler<Env>;

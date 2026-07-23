@@ -15,6 +15,11 @@
     "ENVIRONMENT": "local"
   },
 
+  // Process mining runs every 6 hours (PRD §4.2).
+  "triggers": {
+    "crons": ["17 */6 * * *"]
+  },
+
   "d1_databases": [
     {
       "binding": "DB",
