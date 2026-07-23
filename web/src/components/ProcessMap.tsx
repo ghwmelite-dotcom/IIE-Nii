@@ -58,9 +58,8 @@ function layout(nodes: DFGNode[], edges: DFGEdge[]) {
 		activities.forEach((activity, i) => pos.set(activity, { x: 40 + r * X_GAP, y: 50 + i * Y_GAP }));
 	}
 
-	const maxRank = Math.max(0, ...byRank.keys());
-	const maxInRank = Math.max(1, ...[...byRank.values()].map((a) => a.length));
-	return { pos, width: 40 + maxRank * X_GAP + NODE_W + 60, height: 50 + maxInRank * Y_GAP + 40 };
+	const maxNodeBottom = Math.max(...[...pos.values()].map((p) => p.y)) + NODE_H;
+	return { pos, width: 40 + Math.max(0, ...byRank.keys()) * X_GAP + NODE_W + 60, height: maxNodeBottom + 50 };
 }
 
 /** Off-the-line label: a small pill floating clear of the edge it describes. */
@@ -138,6 +137,25 @@ export default function ProcessMap({ nodes, edges, edgeStats }: Props) {
 				const y2 = b.y + NODE_H / 2;
 				const midX = (x1 + x2) / 2;
 				const midY = (y1 + y2) / 2;
+
+				// Skip edges (spanning more than one rank) arc above intermediate nodes.
+				if (x2 - x1 > X_GAP * 1.5) {
+					const arcTop = Math.min(a.y, b.y) - 60;
+					const apexY = (midY + arcTop) / 2;
+					return (
+						<g key={i} style={{ color }}>
+							<path
+								d={`M ${x1} ${y1} Q ${midX} ${arcTop}, ${x2} ${y2}`}
+								fill="none"
+								stroke={color}
+								strokeWidth={strokeWidth}
+								markerEnd="url(#map-arrow)"
+							/>
+							<EdgeLabel x={midX} y={apexY - 8} text={label} flagged={flagged} />
+						</g>
+					);
+				}
+
 				// Push the pill off the line: up for straight runs, perpendicular for diagonals.
 				const diagonal = Math.abs(y2 - y1) > 4;
 				const lx = midX + (diagonal ? 26 : 0);
