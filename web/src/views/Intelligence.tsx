@@ -2,10 +2,13 @@ import { useState } from "react";
 import { api } from "../api";
 import { usePoll } from "../hooks";
 import ProcessMap from "../components/ProcessMap";
+import type { EdgeStat } from "../components/ProcessMap";
 
 const SOURCES = ["LEAVE_WORKFLOW", "ATTENDANCE", "CHATBOT"] as const;
 
 const DAYS = (ms: number) => (ms / 86_400_000).toFixed(1);
+
+const VARIANT_COLORS = ["#4f46e5", "#059669", "#d97706", "#e11d48", "#64748b", "#0891b2"];
 
 export default function Intelligence() {
 	const [source, setSource] = useState<(typeof SOURCES)[number]>("LEAVE_WORKFLOW");
@@ -14,11 +17,18 @@ export default function Intelligence() {
 	const conformance = usePoll(api.conformance, 30_000);
 
 	const m = model.data?.models[0];
-	const flaggedPairs = new Set((bottlenecks.data?.bottlenecks ?? []).filter((b) => b.flagged).map((b) => b.activity_pair));
+	const edgeStats = new Map<string, EdgeStat>(
+		(bottlenecks.data?.bottlenecks ?? []).map((b) => [b.activity_pair, { median_ms: b.median_ms, flagged: b.flagged }]),
+	);
+	const flaggedCount = (bottlenecks.data?.bottlenecks ?? []).filter((b) => b.flagged).length;
+
+	const variantTotal = (m?.variants ?? []).reduce((acc, v) => acc + v.count, 0);
+	const deviating = conformance.data?.summary.deviations ?? 0;
+	const conformantRate = m && m.case_count > 0 ? Math.max(0, Math.round(((m.case_count - deviating) / m.case_count) * 100)) : null;
 
 	return (
 		<div className="space-y-6">
-			<div className="flex items-center gap-2">
+			<div className="flex flex-wrap items-center gap-2">
 				{SOURCES.map((s) => (
 					<button
 						key={s}
@@ -30,17 +40,22 @@ export default function Intelligence() {
 						{s.toLowerCase().replace("_", " ")}
 					</button>
 				))}
-				{m && (
-					<span className="ml-auto text-xs text-slate-400">
-						{m.case_count} cases · {m.event_count} events · mined {new Date(m.created_at).toLocaleString()}
+				<div className="ml-auto flex gap-2 text-xs">
+					<span className="rounded bg-white px-2 py-1 shadow-sm border border-slate-200">{m?.case_count ?? "…"} cases</span>
+					<span className="rounded bg-white px-2 py-1 shadow-sm border border-slate-200">{m?.event_count ?? "…"} events</span>
+					<span className="rounded bg-white px-2 py-1 shadow-sm border border-slate-200">{m?.variants.length ?? "…"} variants</span>
+					<span className={`rounded px-2 py-1 shadow-sm border ${flaggedCount > 0 ? "border-red-200 bg-red-50 text-red-800" : "border-slate-200 bg-white"}`}>
+						{flaggedCount} flagged
 					</span>
-				)}
+				</div>
 			</div>
 
-			{/* Process map */}
+			{/* Process map with duration overlay */}
 			<section className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-				<h2 className="mb-2 text-sm font-semibold text-slate-700">Discovered process map</h2>
-				{m ? <ProcessMap nodes={m.graph.nodes} edges={m.graph.edges} flaggedPairs={flaggedPairs} /> : <p className="text-slate-400">Loading…</p>}
+				<h2 className="mb-1 text-sm font-semibold text-slate-700">Discovered process map</h2>
+				<p className="mb-2 text-xs text-slate-400">Edges show case count · median transition time. Red = over SLA threshold.</p>
+				{m ? <ProcessMap nodes={m.graph.nodes} edges={m.graph.edges} edgeStats={edgeStats} /> : <p className="text-slate-400">Loading…</p>}
+				{m && <p className="mt-2 text-right text-xs text-slate-400">mined {new Date(m.created_at).toLocaleString()}</p>}
 			</section>
 
 			<div className="grid gap-6 lg:grid-cols-2">
@@ -69,34 +84,57 @@ export default function Intelligence() {
 					</table>
 				</section>
 
-				{/* Variants + conformance */}
 				<div className="space-y-6">
+					{/* Variant share */}
 					<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 						<h2 className="mb-3 text-sm font-semibold text-slate-700">Workflow variants</h2>
+						{variantTotal > 0 && (
+							<div className="mb-3 flex h-4 w-full overflow-hidden rounded-full">
+								{(m?.variants ?? []).map((v, i) => (
+									<div
+										key={i}
+										style={{ width: `${(v.count / variantTotal) * 100}%`, backgroundColor: VARIANT_COLORS[i % VARIANT_COLORS.length] }}
+										title={`${v.count} cases`}
+									/>
+								))}
+							</div>
+						)}
 						<ul className="space-y-1 text-sm">
 							{(m?.variants ?? []).map((v, i) => (
 								<li key={i} className="flex items-start gap-2">
-									<span className="w-10 shrink-0 text-right font-medium">{v.count}×</span>
+									<span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: VARIANT_COLORS[i % VARIANT_COLORS.length] }} />
+									<span className="w-14 shrink-0 text-right font-medium">
+										{v.count}× <span className="text-xs text-slate-400">({Math.round((v.count / variantTotal) * 100)}%)</span>
+									</span>
 									<span className="text-slate-600">{v.activities.join(" → ")}</span>
 								</li>
 							))}
 						</ul>
 					</section>
 
+					{/* Conformance */}
 					<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 						<h2 className="mb-3 text-sm font-semibold text-slate-700">Conformance</h2>
 						{conformance.data ? (
 							<>
-								<div className="mb-2 flex gap-3 text-sm">
-									<span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900">{conformance.data.summary.deviations} deviations</span>
-									{conformance.data.summary.avg_score !== null && (
-										<span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700">avg score {conformance.data.summary.avg_score}</span>
-									)}
-								</div>
-								<ul className="max-h-40 space-y-1 overflow-y-auto text-xs text-slate-600">
+								{conformantRate !== null && (
+									<div className="mb-3">
+										<div className="mb-1 flex items-baseline justify-between text-sm">
+											<span className="font-semibold">{conformantRate}% of cases follow the prescribed workflow</span>
+											<span className="text-xs text-slate-400">{deviating} deviations</span>
+										</div>
+										<div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+											<div
+												className={`h-full rounded-full ${conformantRate >= 90 ? "bg-emerald-500" : conformantRate >= 70 ? "bg-amber-500" : "bg-red-500"}`}
+												style={{ width: `${conformantRate}%` }}
+											/>
+										</div>
+									</div>
+								)}
+								<ul className="max-h-36 space-y-1 overflow-y-auto text-xs text-slate-600">
 									{conformance.data.deviations.map((d) => (
 										<li key={d.id}>
-											<span className="font-mono">{d.case_id.slice(0, 8)}</span> — {d.description} ({d.score})
+											<span className="font-mono">{d.case_id.slice(0, 12)}</span> — {d.description} ({d.score})
 										</li>
 									))}
 								</ul>

@@ -105,4 +105,44 @@ app.get("/attendance-daily", async (c) => {
 	});
 });
 
+// Department comparison for the decision-support view (PRD §6.4): punctuality
+// from clock-in events + average leave cycle time for completed cases.
+app.get("/department-insights", async (c) => {
+	const { results: punctuality } = await c.env.DB.prepare(
+		`SELECT json_extract(metadata, '$.department') AS department,
+		        COUNT(*) AS clock_ins,
+		        SUM(CASE WHEN json_extract(metadata, '$.late') = 1 THEN 1 ELSE 0 END) AS late
+		 FROM events WHERE activity = 'clock_in'
+		 GROUP BY department`,
+	).all<{ department: string; clock_ins: number; late: number | null }>();
+
+	const { results: cycles } = await c.env.DB.prepare(
+		`WITH terminal AS (
+		     SELECT DISTINCT case_id FROM events
+		     WHERE source_system = 'LEAVE_WORKFLOW' AND activity IN ('completed', 'rejected')
+		 ),
+		 spans AS (
+		     SELECT e.case_id,
+		            json_extract(MIN(e.metadata), '$.department') AS department,
+		            (julianday(MAX(e."timestamp")) - julianday(MIN(e."timestamp"))) * 86400000.0 AS cycle_ms
+		     FROM events e
+		     WHERE e.source_system = 'LEAVE_WORKFLOW' AND e.case_id IN (SELECT case_id FROM terminal)
+		     GROUP BY e.case_id
+		 )
+		 SELECT department, COUNT(*) AS cases, AVG(cycle_ms) AS avg_ms
+		 FROM spans GROUP BY department`,
+	).all<{ department: string; cases: number; avg_ms: number | null }>();
+
+	const cycleByDept = new Map(cycles.map((row) => [row.department, row]));
+	return c.json({
+		departments: punctuality.map((row) => ({
+			department: row.department,
+			clock_ins: row.clock_ins,
+			late_rate: row.clock_ins > 0 ? Math.round(((row.late ?? 0) / row.clock_ins) * 1000) / 1000 : 0,
+			leave_cases: cycleByDept.get(row.department)?.cases ?? 0,
+			avg_leave_days: cycleByDept.get(row.department)?.avg_ms != null ? Math.round((cycleByDept.get(row.department)!.avg_ms! / 86_400_000) * 10) / 10 : null,
+		})),
+	});
+});
+
 export default app;

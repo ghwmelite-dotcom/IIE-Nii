@@ -1,9 +1,19 @@
 import type { DFGEdge, DFGNode } from "../api";
 
+export interface EdgeStat {
+	median_ms: number;
+	flagged: boolean;
+}
+
 interface Props {
 	nodes: DFGNode[];
 	edges: DFGEdge[];
-	flaggedPairs?: Set<string>;
+	/** Per-pair duration stats ("a -> b"), used to label and color edges. */
+	edgeStats?: Map<string, EdgeStat>;
+}
+
+export function formatDuration(ms: number): string {
+	return ms >= 86_400_000 ? `${(ms / 86_400_000).toFixed(1)}d` : `${Math.max(1, Math.round(ms / 3_600_000))}h`;
 }
 
 const NODE_W = 150;
@@ -46,7 +56,7 @@ function layout(nodes: DFGNode[], edges: DFGEdge[]) {
 	return { pos, width: 20 + (maxRank + 1) * X_GAP + 40, height: 30 + maxInRank * Y_GAP + 20 };
 }
 
-export default function ProcessMap({ nodes, edges, flaggedPairs }: Props) {
+export default function ProcessMap({ nodes, edges, edgeStats }: Props) {
 	if (nodes.length === 0) return <p className="text-sm text-slate-400">No model yet — run the mining job.</p>;
 
 	const { pos, width, height } = layout(nodes, edges);
@@ -63,9 +73,10 @@ export default function ProcessMap({ nodes, edges, flaggedPairs }: Props) {
 			{edges.map((e, i) => {
 				const a = pos.get(e.from)!;
 				const b = pos.get(e.to)!;
-				const flagged = flaggedPairs?.has(`${e.from} -> ${e.to}`);
-				const color = flagged ? "#dc2626" : "#94a3b8";
+				const stat = edgeStats?.get(`${e.from} -> ${e.to}`);
+				const color = stat?.flagged ? "#dc2626" : "#94a3b8";
 				const strokeWidth = 1 + (e.count / maxEdge) * 5;
+				const label = stat ? `${e.count} · ${formatDuration(stat.median_ms)} median` : `${e.count}`;
 
 				if (e.from === e.to) {
 					// Self-loop arc above the node
@@ -81,7 +92,7 @@ export default function ProcessMap({ nodes, edges, flaggedPairs }: Props) {
 								markerEnd="url(#arrow)"
 							/>
 							<text x={cx} y={cy - 30} textAnchor="middle" fontSize="11" fill={color}>
-								{e.count}
+								{label}
 							</text>
 						</g>
 					);
@@ -101,8 +112,8 @@ export default function ProcessMap({ nodes, edges, flaggedPairs }: Props) {
 							strokeWidth={strokeWidth}
 							markerEnd="url(#arrow)"
 						/>
-						<text x={midX} y={(y1 + y2) / 2 - 6} textAnchor="middle" fontSize="11" fill={color}>
-							{e.count}
+						<text x={midX} y={(y1 + y2) / 2 - 6} textAnchor="middle" fontSize="11" fontWeight={stat?.flagged ? 700 : 400} fill={color}>
+							{label}
 						</text>
 					</g>
 				);

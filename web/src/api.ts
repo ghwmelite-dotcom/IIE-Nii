@@ -78,6 +78,14 @@ export interface Recommendation {
 	detail: string;
 }
 
+export interface DepartmentInsight {
+	department: string;
+	clock_ins: number;
+	late_rate: number;
+	leave_cases: number;
+	avg_leave_days: number | null;
+}
+
 export interface ChatResponse {
 	reply: string;
 	intent: string;
@@ -100,6 +108,7 @@ export const api = {
 		get<{ period: string | null; bottlenecks: Bottleneck[] }>(`/api/intelligence/bottlenecks${source ? `?source=${source}` : ""}`),
 	conformance: () => get<Conformance>("/api/intelligence/conformance"),
 	recommendations: () => get<{ generated_at: string; recommendations: Recommendation[] }>("/api/intelligence/recommendations"),
+	departmentInsights: () => get<{ departments: DepartmentInsight[] }>("/api/stats/department-insights"),
 	chat: async (employee_id: string, message: string): Promise<ChatResponse> => {
 		const res = await fetch("/api/chatbot/message", {
 			method: "POST",
