@@ -60,33 +60,66 @@ const pick = (arr) => arr[Math.floor(rand() * arr.length)];
 const gauss = () => (rand() + rand() + rand()) / 1.5 - 1; // mean 0, roughly [-1, 1]
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-const DEPARTMENTS = ["Administration", "Finance", "HR", "ICT", "Policy & Planning"];
+// OHCS organizational structure: 5 directorates + 4 units (ids are the real acronyms).
+const DEPARTMENTS = [
+	{ id: "RSIMD", name: "Research, Statistics & Information Management" },
+	{ id: "PBMED", name: "Planning, Budgeting, Monitoring & Evaluation" },
+	{ id: "CMD", name: "Career Management" },
+	{ id: "F&A", name: "Finance & Administration" },
+	{ id: "RTDD", name: "Recruitment, Training & Development" },
+	{ id: "RCU", name: "Reform Coordinating Unit" },
+	{ id: "CSC", name: "Civil Service Council" },
+	{ id: "IAU", name: "Internal Audit Unit" },
+	{ id: "PR", name: "Public Relations Unit" },
+];
 const LEAVE_TYPES = ["annual", "sick", "maternity", "study", "casual"];
 const CHAT_TOPICS = ["leave_balance", "policy", "attendance", "payslip", "pension"];
 const FIRST_NAMES = ["Ama", "Kofi", "Kwame", "Akosua", "Yaw", "Efua", "Kwabena", "Abena", "Kojo", "Adjoa"];
 const LAST_NAMES = ["Mensah", "Owusu", "Boateng", "Asante", "Osei", "Agyemang", "Darko", "Nkrumah", "Appiah", "Frimpong"];
 
-const deptId = (i) => `DEPT-${String(i + 1).padStart(2, "0")}`;
-const managerId = (i) => `MGR-${String(i + 1).padStart(2, "0")}`;
+const deptId = (i) => DEPARTMENTS[i].id;
+const directorId = (i) => `DIR-${DEPARTMENTS[i].id}`;
+const deputyId = (i) => `DEP-${DEPARTMENTS[i].id}`;
+const managerId = (i) => `AD1-${DEPARTMENTS[i].id}`;
 const personName = (i) => `${FIRST_NAMES[i % FIRST_NAMES.length]} ${LAST_NAMES[(i * 7 + 3) % LAST_NAMES.length]}`;
 
 // Org directory — imported via POST /api/org/import before events are sent.
-const departments = DEPARTMENTS.map((name, i) => ({ department_id: deptId(i), name, head_employee_id: managerId(i) }));
+// Grading structure: each directorate/unit is headed by a Director (management)
+// with at least one Deputy Director; middle management runs from Assistant
+// Director I up to Deputy Director (workflow role "line_manager"); the rest are
+// officers of varying lower grades (workflow role "staff").
+const departments = DEPARTMENTS.map((d, i) => ({ department_id: d.id, name: d.name, head_employee_id: directorId(i) }));
 const orgEmployees = [
-	...DEPARTMENTS.map((_, i) => ({
-		employee_id: managerId(i),
-		name: personName(i + 100),
-		department_id: deptId(i),
-		role: "line_manager",
-		email: `${managerId(i).toLowerCase()}@ohcs.gov.gh`,
-	})),
-	{ employee_id: "HR-001", name: personName(150), department_id: deptId(2), role: "hr_officer", email: "hr-001@ohcs.gov.gh" },
-	{ employee_id: "DIR-001", name: personName(200), department_id: deptId(0), role: "director", email: "dir-001@ohcs.gov.gh" },
+	...DEPARTMENTS.flatMap((d, i) => [
+		{
+			employee_id: directorId(i),
+			name: personName(i + 200),
+			department_id: d.id,
+			role: "director",
+			email: `${directorId(i).toLowerCase()}@ohcs.gov.gh`,
+		},
+		{
+			employee_id: deputyId(i),
+			name: personName(i + 300),
+			department_id: d.id,
+			role: "line_manager",
+			email: `${deputyId(i).toLowerCase()}@ohcs.gov.gh`,
+		},
+		{
+			employee_id: managerId(i),
+			name: personName(i + 100),
+			department_id: d.id,
+			role: "line_manager",
+			email: `${managerId(i).toLowerCase()}@ohcs.gov.gh`,
+		},
+	]),
+	// HR function sits in the Career Management Directorate.
+	{ employee_id: "HR-001", name: personName(150), department_id: "CMD", role: "hr_officer", email: "hr-001@ohcs.gov.gh" },
 ];
 
 const employees = Array.from({ length: EMPLOYEES }, (_, i) => ({
 	id: `EMP-${String(i + 1).padStart(4, "0")}`,
-	dept: DEPARTMENTS[i % DEPARTMENTS.length],
+	dept: DEPARTMENTS[i % DEPARTMENTS.length].name,
 	deptIdx: i % DEPARTMENTS.length,
 }));
 orgEmployees.push(
@@ -108,7 +141,7 @@ const POLICIES = [
 
 Every confirmed officer of the Civil Service is entitled to thirty (30) working days of annual leave per calendar year. Annual leave accrues from January to December and must be taken within the leave year.
 
-Applications for annual leave must be submitted at least two (2) weeks before the intended start date, and must be approved by the officer's line manager, verified by the HR Directorate, and approved by a Director before the officer proceeds on leave.
+Applications for annual leave must be submitted at least two (2) weeks before the intended start date, and must be approved by the officer's line manager, verified by the Career Management Directorate, and approved by a Director before the officer proceeds on leave.
 
 Up to ten (10) unused working days may be carried over into the first quarter of the following leave year. Any balance above ten days lapses on 31 March of the following year.
 
@@ -120,9 +153,9 @@ Officers proceeding on annual leave must hand over their assignments and officia
 
 Official working hours are 8:00 a.m. to 5:00 p.m., Monday to Friday. All staff are required to clock in on arrival and clock out on departure using the RFID access card system.
 
-A grace period of thirty (30) minutes applies to the morning clock-in. Arrivals after 8:30 a.m. are recorded as late. Persistent lateness — more than four late arrivals in a month — is reported to the HR Directorate.
+A grace period of thirty (30) minutes applies to the morning clock-in. Arrivals after 8:30 a.m. are recorded as late. Persistent lateness — more than four late arrivals in a month — is reported to the Career Management Directorate.
 
-Staff who forget to clock out must report to the HR Directorate the next working day to regularize their record. Unexplained missing clock-outs are flagged as attendance anomalies.
+Staff who forget to clock out must report to the Career Management Directorate the next working day to regularize their record. Unexplained missing clock-outs are flagged as attendance anomalies.
 
 Officers leaving the office during working hours for official assignments must complete a movement register at the front desk.`,
 	},
@@ -136,7 +169,7 @@ Sick leave of up to three (3) consecutive days may be taken without a medical ce
 
 Sick leave is not deducted from the annual leave entitlement. Extended medical absence is handled under the Civil Service medical boarding procedures.
 
-The HR Directorate may refer an officer for an independent medical review where sick leave patterns raise concern.`,
+The Career Management Directorate may refer an officer for an independent medical review where sick leave patterns raise concern.`,
 	},
 ];
 
@@ -231,7 +264,7 @@ for (let i = 0; i < leaveCount; i++) {
 		continue;
 	}
 	t += (24 + rand() * 72) * 3600_000; // 1–4d
-	step("director_approval", "DIR-001");
+	step("director_approval", directorId(emp.deptIdx));
 	step("completed", "system");
 }
 
