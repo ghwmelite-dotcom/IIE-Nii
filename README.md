@@ -28,18 +28,19 @@ npm run db:migrate:local   # create + migrate local D1
 npm run build:web          # build the dashboard into web/dist (required once)
 npm run dev                # http://localhost:8787 — API + dashboard together
 npm run seed -- --employees 10 --months 1   # smoke-test dataset
-npm run seed               # full dataset: 50 employees, 6 months
+npm run seed               # full dataset: 150 staff (122 officers + management), 6 months
 npm test                   # vitest suite (runs inside the Workers runtime)
 npm run validate           # PRD §13 metrics report (needs dev server + seed)
 npm run check              # typecheck
 ```
 
 The seed is additive: case ids are namespaced by `--seed`, so different seeds
-coexist, but re-running with the same seed duplicates events. To start over:
-stop the dev server, delete rows via `wrangler d1 execute iie-event-log --local
---command "DELETE FROM events; DELETE FROM attendance_records; DELETE FROM
-workflow_transitions; DELETE FROM leave_requests;"` (children before parents),
-then re-seed.
+coexist, but re-running with the same seed duplicates events. To start over,
+wipe every table and re-seed in one step:
+
+```sh
+npm run seed -- --reset
+```
 
 For frontend iteration with hot reload: keep `npm run dev` running and also run
 `npm --prefix web run dev` (Vite proxies /api to the Worker on :8787).
@@ -53,6 +54,23 @@ demand with `POST /api/intelligence/run`; test either cron path via
 Note: Workers AI and Vectorize have no local simulation — they always hit the
 real services (`remote: true` in `wrangler.jsonc`), even under `wrangler dev`.
 AI usage is billed against the free tier (10k neurons/day).
+
+## Runtime config (KV)
+
+The `CONFIG` KV namespace holds tunables, read at mining time with code
+defaults as fallback. Currently: `bottleneck_thresholds_ms` — per-source median
+SLA for flagging bottleneck transitions.
+
+```sh
+# local dev
+npx wrangler kv key put --binding CONFIG bottleneck_thresholds_ms '{"LEAVE_WORKFLOW":172800000,"ATTENDANCE":43200000}' --local
+# production (create the namespace once, put its id in wrangler.jsonc first)
+wrangler kv namespace create CONFIG
+wrangler kv key put --binding CONFIG bottleneck_thresholds_ms '{"LEAVE_WORKFLOW":172800000}' --remote
+```
+
+Defaults (used when the key is absent): leave transitions flag above a 2-day
+median, attendance above 12h; chatbot gaps are never flagged.
 
 ## Auth
 
@@ -103,7 +121,10 @@ it automatically). Production: `wrangler secret put API_KEY`.
 | GET | `/api/intelligence/conformance` | Deviations vs. the prescribed leave workflow |
 | GET | `/api/intelligence/recommendations` | Rule-based decision-support feed |
 | POST | `/api/intelligence/run` | Run the mining job on demand |
-| GET | `/api/events/recent?limit=N` | Latest events across systems (dashboard feed) |
+| GET | `/api/events/recent?limit=N` | Latest events across systems (feed initial load + polling fallback) |
+| GET | `/api/events/stream` | SSE live feed — pushes events as they're ingested |
+| GET | `/api/org/employees` | Org directory listing (employee pickers) |
+| GET | `/api/leave?employee_id=` | Leave requests: own list, or pending inbox (`?current_step=`) |
 | GET | `/api/stats/overview` | Headline numbers (employees, events, open leave, flags) |
 | GET | `/api/stats/attendance-daily?days=N` | Per-day attendance counts for the heatmap |
 | GET | `/api/stats/leave-pipeline` | Leave cases grouped by waiting step |
@@ -111,12 +132,15 @@ it automatically). Production: `wrangler secret put API_KEY`.
 
 ## Dashboard
 
-Three views: **Operations** (stat cards, polled live event feed, 30-day
-attendance heatmap, leave pipeline), **Process Intelligence** (interactive SVG
-process map with bottleneck-flagged edges, variants, conformance), and
-**Decision Support** (recommendation cards). The chat widget floats bottom-right
-on every view. Non-`/api` paths fall back to the SPA (`ASSETS` binding +
-`not_found_handling: single-page-application`).
+Four views: **Operations** (stat cards, SSE live event feed with case
+drill-down, 30-day attendance heatmap, leave pipeline), **Process
+Intelligence** (interactive SVG process map with bottleneck-flagged edges,
+variants, conformance with case drill-down), **Decision Support**
+(recommendation cards, department comparison, CSV/print export), and **My
+Leave** (submit, track, and act on leave requests through the F&A / RTDD
+chains). Tabs are hash-routed (`#intelligence`, `#leave`, …). The chat widget
+floats bottom-right on every view. Non-`/api` paths fall back to the SPA
+(`ASSETS` binding + `not_found_handling: single-page-application`).
 
 ## Chatbot design
 
@@ -145,5 +169,4 @@ npm run seed -- --base https://iie.<your-subdomain>.workers.dev --key <key>
 
 - Cloudflare Access / SSO for per-user identity (API key covers machine endpoints now)
 - Queue fanout from ingestion (requires Workers Paid plan)
-- SSE live feed (`/api/events/stream`) to replace dashboard polling
-- AI narrative layer over the rule-based recommendations; prescribed-model + thresholds into KV config
+- AI narrative layer over the rule-based recommendations; prescribed conformance model into KV config

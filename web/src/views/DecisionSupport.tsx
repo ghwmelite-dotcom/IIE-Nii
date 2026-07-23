@@ -1,5 +1,6 @@
 import { api } from "../api";
 import { usePoll } from "../hooks";
+import LoadError from "../components/LoadError";
 
 const SEVERITY_STYLES: Record<string, string> = {
 	high: "border-l-red-500",
@@ -32,12 +33,53 @@ export default function DecisionSupport() {
 	const avgLate = depts.length ? depts.reduce((a, d) => a + d.late_rate, 0) / depts.length : 0;
 	const avgLeave = depts.length ? depts.reduce((a, d) => a + (d.avg_leave_days ?? 0), 0) / depts.length : 0;
 
+	function downloadCsv() {
+		const csvCell = (v: unknown) => `"${String(v ?? "").replaceAll('"', '""')}"`;
+		const section = (title: string, rows: unknown[][]) => `${title}\n${rows.map((r) => r.map(csvCell).join(",")).join("\n")}`;
+		const csv = [
+			section("Recommendations", [["kind", "severity", "title", "detail"], ...sorted.map((r) => [r.kind, r.severity, r.title, r.detail])]),
+			section(
+				"Department comparison",
+				[
+					["department", "clock_ins", "late_rate", "leave_cases", "avg_leave_days"],
+					...depts.map((d) => [d.department, d.clock_ins, d.late_rate, d.leave_cases, d.avg_leave_days ?? ""]),
+				],
+			),
+		].join("\n\n");
+		const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+		const a = Object.assign(document.createElement("a"), {
+			href: url,
+			download: `decision-support-${new Date().toISOString().slice(0, 10)}.csv`,
+		});
+		a.click();
+		URL.revokeObjectURL(url);
+	}
+
 	return (
 		<div className="space-y-6">
-			<p className="text-sm text-slate-500">
-				Rule-generated from the latest bottleneck, conformance, and variant analysis
-				{recs.data ? ` (${new Date(recs.data.generated_at).toLocaleString()})` : ""}. The AI narrative layer arrives in a later phase.
-			</p>
+			<LoadError label="recommendations" error={recs.error && !recs.data ? recs.error : null} />
+			<LoadError label="department insights" error={departments.error && !departments.data ? departments.error : null} />
+			<div className="flex flex-wrap items-start gap-3">
+				<p className="flex-1 text-sm text-slate-500">
+					Rule-generated from the latest bottleneck, conformance, and variant analysis
+					{recs.data ? ` (${new Date(recs.data.generated_at).toLocaleString()})` : ""}. The AI narrative layer arrives in a later phase.
+				</p>
+				<div className="no-print flex gap-2">
+					<button
+						onClick={downloadCsv}
+						disabled={!recs.data}
+						className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+					>
+						Download CSV
+					</button>
+					<button
+						onClick={() => window.print()}
+						className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+					>
+						Print / Save as PDF
+					</button>
+				</div>
+			</div>
 
 			{/* Top insight banner */}
 			{top && (

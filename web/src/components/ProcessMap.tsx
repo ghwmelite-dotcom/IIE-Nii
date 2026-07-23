@@ -28,7 +28,7 @@ export function formatDuration(ms: number): string {
 	return ms >= 86_400_000 ? `${(ms / 86_400_000).toFixed(1)}d` : `${Math.max(1, Math.round(ms / 3_600_000))}h`;
 }
 
-/** Layered layout: longest-path ranks from source nodes. Self-loops and cycles can't stall it. */
+/** Layered layout: BFS ranks from source nodes, first visit wins. Self-loops and cycles can't stall it. */
 function layout(nodes: DFGNode[], edges: DFGEdge[]) {
 	const incoming = new Set(edges.filter((e) => e.from !== e.to).map((e) => e.to));
 	const adjacency = new Map<string, string[]>();
@@ -41,7 +41,7 @@ function layout(nodes: DFGNode[], edges: DFGEdge[]) {
 	const queue: [string, number][] = nodes.filter((n) => !incoming.has(n.activity)).map((n) => [n.activity, 0]);
 	while (queue.length > 0) {
 		const [activity, r] = queue.shift()!;
-		if ((rank.get(activity) ?? -1) >= r) continue;
+		if (rank.has(activity)) continue; // cycles revisit nodes — keep the first (shortest) rank
 		rank.set(activity, r);
 		for (const next of adjacency.get(activity) ?? []) queue.push([next, r + 1]);
 	}
@@ -80,7 +80,7 @@ function EdgeLabel({ x, y, text, flagged }: { x: number; y: number; text: string
 			<text x={0} y={4} textAnchor="middle" fontSize={11} fontWeight={flagged ? 600 : 500} fill={flagged ? "white" : "#475569"}>
 				{text}
 			</text>
-			<title>{flagged ? "Over SLA threshold — " : ""}{text}</title>
+			<title>{`${flagged ? "Over SLA threshold — " : ""}${text}`}</title>
 		</g>
 	);
 }

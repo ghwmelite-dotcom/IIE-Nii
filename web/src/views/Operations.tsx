@@ -1,6 +1,9 @@
 import { api } from "../api";
-import { usePoll } from "../hooks";
+import { useEventFeed, usePoll } from "../hooks";
+import { useState } from "react";
 import SystemMap from "../components/SystemMap";
+import LoadError from "../components/LoadError";
+import CaseTrace from "../components/CaseTrace";
 
 const SOURCE_BADGE: Record<string, string> = {
 	ATTENDANCE: "bg-emerald-100 text-emerald-800",
@@ -10,9 +13,10 @@ const SOURCE_BADGE: Record<string, string> = {
 
 export default function Operations() {
 	const overview = usePoll(api.overview, 10_000);
-	const feed = usePoll(() => api.recentEvents(25), 5_000);
+	const feed = useEventFeed(25);
 	const attendance = usePoll(() => api.attendanceDaily(30), 30_000);
 	const pipeline = usePoll(api.leavePipeline, 15_000);
+	const [traceCase, setTraceCase] = useState<string | null>(null);
 
 	const o = overview.data;
 	const stats = [
@@ -25,6 +29,10 @@ export default function Operations() {
 
 	return (
 		<div className="space-y-6">
+			<LoadError label="overview" error={overview.error && !overview.data ? overview.error : null} />
+			<LoadError label="event feed" error={feed.error && !feed.events ? feed.error : null} />
+			<LoadError label="attendance" error={attendance.error && !attendance.data ? attendance.error : null} />
+			<LoadError label="leave pipeline" error={pipeline.error && !pipeline.data ? pipeline.error : null} />
 			<SystemMap overview={o} />
 
 			{/* Stat cards */}
@@ -42,8 +50,13 @@ export default function Operations() {
 				<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 					<h2 className="mb-3 text-sm font-semibold text-slate-700">Live event feed</h2>
 					<ul className="max-h-96 space-y-1 overflow-y-auto text-sm">
-						{(feed.data?.events ?? []).map((e) => (
-							<li key={e.event_id} className="flex items-center gap-2 border-b border-slate-100 py-1">
+						{(feed.events ?? []).map((e) => (
+							<li
+								key={e.event_id}
+								onClick={() => setTraceCase(e.case_id)}
+								title={`Open trace for ${e.case_id}`}
+								className="flex cursor-pointer items-center gap-2 border-b border-slate-100 py-1 hover:bg-slate-50"
+							>
 								<span className="w-16 shrink-0 text-xs text-slate-400">{e.timestamp.slice(11, 19)}</span>
 								<span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${SOURCE_BADGE[e.source_system] ?? "bg-slate-100"}`}>
 									{e.source_system.replace("_WORKFLOW", "")}
@@ -54,7 +67,7 @@ export default function Operations() {
 								</span>
 							</li>
 						))}
-						{feed.data?.events.length === 0 && <li className="text-slate-400">No events yet.</li>}
+						{feed.events?.length === 0 && <li className="text-slate-400">No events yet.</li>}
 					</ul>
 				</section>
 
@@ -91,7 +104,7 @@ export default function Operations() {
 					<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 						<h2 className="mb-3 text-sm font-semibold text-slate-700">Leave pipeline</h2>
 						<div className="flex flex-wrap gap-2">
-							{["manager_review", "hr_verification", "director_approval", "completed", "rejected", "escalated"].map((stage) => (
+							{["supervisor_review", "fa_verification", "director_fa_approval", "rtdd_review", "director_rtdd_approval", "completed", "rejected", "escalated"].map((stage) => (
 								<div key={stage} className="rounded-lg border border-slate-200 px-3 py-2 text-center">
 									<div className="text-lg font-semibold">{stages[stage] ?? 0}</div>
 									<div className="text-[10px] uppercase tracking-wide text-slate-500">{stage.replace("_", " ")}</div>
@@ -101,6 +114,7 @@ export default function Operations() {
 					</section>
 				</div>
 			</div>
+			{traceCase && <CaseTrace caseId={traceCase} onClose={() => setTraceCase(null)} />}
 		</div>
 	);
 }

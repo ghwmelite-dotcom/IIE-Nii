@@ -92,6 +92,39 @@ export interface ChatResponse {
 	sources?: string[];
 }
 
+export interface Employee {
+	employee_id: string;
+	name: string;
+	department_id: string;
+	role: string;
+}
+
+export interface CaseTrace {
+	case_id: string;
+	count: number;
+	events: EventItem[];
+}
+
+export interface LeaveRequest {
+	request_id: string;
+	employee_id: string;
+	type: string;
+	start_date: string;
+	end_date: string;
+	status: string;
+	current_step: string;
+	created_at: string;
+}
+
+export interface LeaveTransition {
+	from_step: string;
+	to_step: string;
+	actor_id: string;
+	timestamp: string;
+}
+
+export type LeaveStatus = LeaveRequest & { history: LeaveTransition[] };
+
 async function get<T>(path: string): Promise<T> {
 	const res = await fetch(path);
 	if (!res.ok) throw new Error(`GET ${path} → ${res.status}`);
@@ -109,6 +142,31 @@ export const api = {
 	conformance: () => get<Conformance>("/api/intelligence/conformance"),
 	recommendations: () => get<{ generated_at: string; recommendations: Recommendation[] }>("/api/intelligence/recommendations"),
 	departmentInsights: () => get<{ departments: DepartmentInsight[] }>("/api/stats/department-insights"),
+	employees: () => get<{ employees: Employee[] }>("/api/org/employees"),
+	caseTrace: (caseId: string) => get<CaseTrace>(`/api/events?case_id=${encodeURIComponent(caseId)}`),
+	myLeave: (employeeId: string) => get<{ requests: LeaveRequest[] }>(`/api/leave?employee_id=${encodeURIComponent(employeeId)}`),
+	leaveInbox: (step?: string) => get<{ requests: LeaveRequest[] }>(`/api/leave${step ? `?current_step=${step}` : ""}`),
+	leaveStatus: (id: string) => get<LeaveStatus>(`/api/leave/${encodeURIComponent(id)}/status`),
+	requestLeave: async (employee_id: string, type: string, start_date: string, end_date: string) => {
+		const res = await fetch("/api/leave/request", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ employee_id, type, start_date, end_date }),
+		});
+		const body = (await res.json()) as { request_id?: string; error?: string };
+		if (!res.ok) throw new Error(body.error ?? `POST /api/leave/request → ${res.status}`);
+		return body as { request_id: string };
+	},
+	transitionLeave: async (id: string, action: "approve" | "reject" | "cancel", actor_id: string, reason?: string) => {
+		const res = await fetch(`/api/leave/${encodeURIComponent(id)}/transition`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ action, actor_id, ...(reason ? { reason } : {}) }),
+		});
+		const body = (await res.json()) as { status?: string; error?: string };
+		if (!res.ok) throw new Error(body.error ?? `POST /api/leave/${id}/transition → ${res.status}`);
+		return body;
+	},
 	chat: async (employee_id: string, message: string): Promise<ChatResponse> => {
 		const res = await fetch("/api/chatbot/message", {
 			method: "POST",

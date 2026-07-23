@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../api";
+import EmployeePicker from "./EmployeePicker";
 
 interface Message {
 	role: "user" | "bot";
@@ -45,11 +46,10 @@ export default function ChatWidget() {
 		<div className="fixed bottom-4 right-4 z-50 flex h-[480px] w-96 max-w-[calc(100vw-2rem)] flex-col rounded-xl border border-slate-300 bg-white shadow-2xl">
 			<div className="flex items-center gap-2 rounded-t-xl bg-slate-900 px-3 py-2 text-white">
 				<span className="text-sm font-medium">OHCS assistant</span>
-				<input
+				<EmployeePicker
 					value={employeeId}
-					onChange={(e) => setEmployeeId(e.target.value)}
-					className="ml-auto w-24 rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-200 outline-none"
-					title="Employee ID (placeholder until auth lands)"
+					onChange={setEmployeeId}
+					className="ml-auto w-40 truncate rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-200 outline-none"
 				/>
 				<button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white" aria-label="Close">
 					✕

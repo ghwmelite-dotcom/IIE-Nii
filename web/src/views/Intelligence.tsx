@@ -2,6 +2,8 @@ import { useState } from "react";
 import { api } from "../api";
 import { usePoll } from "../hooks";
 import ProcessMap from "../components/ProcessMap";
+import LoadError from "../components/LoadError";
+import CaseTrace from "../components/CaseTrace";
 import type { EdgeStat } from "../components/ProcessMap";
 
 const SOURCES = ["LEAVE_WORKFLOW", "ATTENDANCE", "CHATBOT"] as const;
@@ -12,6 +14,7 @@ const VARIANT_COLORS = ["#4f46e5", "#059669", "#d97706", "#e11d48", "#64748b", "
 
 export default function Intelligence() {
 	const [source, setSource] = useState<(typeof SOURCES)[number]>("LEAVE_WORKFLOW");
+	const [traceCase, setTraceCase] = useState<string | null>(null);
 	const model = usePoll(() => api.processMap(source), 30_000, [source]);
 	const bottlenecks = usePoll(() => api.bottlenecks(source), 30_000, [source]);
 	const conformance = usePoll(api.conformance, 30_000);
@@ -28,6 +31,9 @@ export default function Intelligence() {
 
 	return (
 		<div className="space-y-6">
+			<LoadError label="process model" error={model.error && !model.data ? model.error : null} />
+			<LoadError label="bottlenecks" error={bottlenecks.error && !bottlenecks.data ? bottlenecks.error : null} />
+			<LoadError label="conformance" error={conformance.error && !conformance.data ? conformance.error : null} />
 			<div className="flex flex-wrap items-center gap-2">
 				{SOURCES.map((s) => (
 					<button
@@ -147,7 +153,14 @@ export default function Intelligence() {
 								<ul className="max-h-36 space-y-1 overflow-y-auto text-xs text-slate-600">
 									{conformance.data.deviations.map((d) => (
 										<li key={d.id}>
-											<span className="font-mono">{d.case_id.slice(0, 12)}</span> — {d.description} ({d.score})
+											<button
+												onClick={() => setTraceCase(d.case_id)}
+												className="font-mono text-indigo-700 underline decoration-dotted hover:text-indigo-900"
+												title="View full event trace"
+											>
+												{d.case_id.slice(0, 12)}
+											</button>{" "}
+											— {d.description} ({d.score})
 										</li>
 									))}
 								</ul>
@@ -158,6 +171,7 @@ export default function Intelligence() {
 					</section>
 				</div>
 			</div>
+			{traceCase && <CaseTrace caseId={traceCase} onClose={() => setTraceCase(null)} />}
 		</div>
 	);
 }

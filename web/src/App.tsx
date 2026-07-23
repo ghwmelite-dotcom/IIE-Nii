@@ -1,19 +1,37 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Operations from "./views/Operations";
 import Intelligence from "./views/Intelligence";
 import DecisionSupport from "./views/DecisionSupport";
+import MyLeave from "./views/MyLeave";
 import ChatWidget from "./components/ChatWidget";
 
 const TABS = [
 	{ id: "operations", label: "Operations" },
 	{ id: "intelligence", label: "Process Intelligence" },
 	{ id: "decision", label: "Decision Support" },
+	{ id: "leave", label: "My Leave" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["id"];
 
+const tabFromHash = (): Tab => {
+	const id = window.location.hash.slice(1);
+	return (TABS.some((t) => t.id === id) ? id : "operations") as Tab;
+};
+
 export default function App() {
-	const [tab, setTab] = useState<Tab>("operations");
+	const [tab, setTab] = useState<Tab>(tabFromHash);
+
+	useEffect(() => {
+		const onHash = () => setTab(tabFromHash());
+		window.addEventListener("hashchange", onHash);
+		return () => window.removeEventListener("hashchange", onHash);
+	}, []);
+
+	const select = (id: Tab) => {
+		window.location.hash = id;
+		setTab(id);
+	};
 
 	return (
 		<div className="min-h-screen bg-slate-100 text-slate-900">
@@ -26,7 +44,7 @@ export default function App() {
 					{TABS.map((t) => (
 						<button
 							key={t.id}
-							onClick={() => setTab(t.id)}
+							onClick={() => select(t.id)}
 							className={`rounded-t-md px-4 py-2 text-sm font-medium transition-colors ${
 								tab === t.id ? "bg-slate-100 text-slate-900" : "text-slate-300 hover:bg-slate-800 hover:text-white"
 							}`}
@@ -41,6 +59,7 @@ export default function App() {
 				{tab === "operations" && <Operations />}
 				{tab === "intelligence" && <Intelligence />}
 				{tab === "decision" && <DecisionSupport />}
+				{tab === "leave" && <MyLeave />}
 			</main>
 
 			<ChatWidget />
