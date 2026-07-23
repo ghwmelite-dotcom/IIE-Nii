@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "iie",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-23",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "observability": {
+    "enabled": true,
+    "logs": { "head_sampling_rate": 1 },
+    "traces": { "enabled": true, "head_sampling_rate": 0.1 }
+  },
+
+  "vars": {
+    "ENVIRONMENT": "local"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "iie-event-log",
+      "database_id": "14cf9a00-3266-4edd-a224-d8411fd0daec",
+      "migrations_dir": "./migrations"
+    }
+  ]
+}
