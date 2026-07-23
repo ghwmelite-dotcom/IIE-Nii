@@ -1,5 +1,6 @@
 import { api } from "../api";
 import { usePoll } from "../hooks";
+import SystemMap from "../components/SystemMap";
 
 const SOURCE_BADGE: Record<string, string> = {
 	ATTENDANCE: "bg-emerald-100 text-emerald-800",
@@ -16,11 +17,7 @@ export default function Operations() {
 	const o = overview.data;
 	const stats = [
 		{ label: "Employees", value: o?.employees },
-		{ label: "Events (total)", value: o?.events_total },
-		{ label: "Events today", value: o?.events_today },
 		{ label: "Open leave requests", value: o?.leave_open },
-		{ label: "Flagged bottlenecks", value: o?.flagged_bottlenecks },
-		{ label: "Last mining run", value: o?.last_mining_run ? new Date(o.last_mining_run).toLocaleString() : "—" },
 	];
 
 	const maxClockIns = Math.max(1, ...(attendance.data?.days.map((d) => d.clock_ins) ?? [1]));
@@ -28,6 +25,8 @@ export default function Operations() {
 
 	return (
 		<div className="space-y-6">
+			<SystemMap overview={o} />
+
 			{/* Stat cards */}
 			<div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
 				{stats.map((s) => (

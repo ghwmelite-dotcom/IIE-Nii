@@ -2,6 +2,7 @@ export interface Overview {
 	employees: number;
 	events_total: number;
 	events_today: number;
+	sources: { source: string; total: number; today: number }[];
 	leave_open: number;
 	flagged_bottlenecks: number;
 	last_mining_run: string | null;

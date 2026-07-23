@@ -40,10 +40,17 @@ app.get("/leave-pipeline", async (c) => {
 // Headline numbers for the operations dashboard.
 app.get("/overview", async (c) => {
 	const today = new Date().toISOString().slice(0, 10);
-	const [employees, eventsTotal, eventsToday, flagged, pipeline, lastRun] = await Promise.all([
+	const [employees, eventsTotal, eventsToday, perSource, flagged, pipeline, lastRun] = await Promise.all([
 		c.env.DB.prepare("SELECT COUNT(*) AS n FROM employees").first<{ n: number }>(),
 		c.env.DB.prepare("SELECT COUNT(*) AS n FROM events").first<{ n: number }>(),
 		c.env.DB.prepare(`SELECT COUNT(*) AS n FROM events WHERE "timestamp" >= ?`).bind(today).first<{ n: number }>(),
+		c.env.DB.prepare(
+			`SELECT source_system AS source, COUNT(*) AS total,
+			        SUM(CASE WHEN "timestamp" >= ? THEN 1 ELSE 0 END) AS today
+			 FROM events GROUP BY source_system`,
+		)
+			.bind(today)
+			.all<{ source: string; total: number; today: number }>(),
 		c.env.DB.prepare("SELECT COUNT(*) AS n FROM bottlenecks WHERE flagged = 1 AND period = (SELECT MAX(period) FROM bottlenecks)").first<{ n: number }>(),
 		c.env.DB.prepare(PIPELINE_SQL).all<PipelineRow>(),
 		c.env.DB.prepare("SELECT MAX(created_at) AS t FROM process_models").first<{ t: string | null }>(),
@@ -60,6 +67,7 @@ app.get("/overview", async (c) => {
 		employees: employees?.n ?? 0,
 		events_total: eventsTotal?.n ?? 0,
 		events_today: eventsToday?.n ?? 0,
+		sources: perSource.results,
 		leave_open: leaveOpen,
 		flagged_bottlenecks: flagged?.n ?? 0,
 		last_mining_run: lastRun?.t ?? null,
