@@ -41,11 +41,42 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const DEPARTMENTS = ["Administration", "Finance", "HR", "ICT", "Policy & Planning"];
 const LEAVE_TYPES = ["annual", "sick", "maternity", "study", "casual"];
 const CHAT_TOPICS = ["leave_balance", "policy", "attendance", "payslip", "pension"];
+const FIRST_NAMES = ["Ama", "Kofi", "Kwame", "Akosua", "Yaw", "Efua", "Kwabena", "Abena", "Kojo", "Adjoa"];
+const LAST_NAMES = ["Mensah", "Owusu", "Boateng", "Asante", "Osei", "Agyemang", "Darko", "Nkrumah", "Appiah", "Frimpong"];
+
+const deptId = (i) => `DEPT-${String(i + 1).padStart(2, "0")}`;
+const managerId = (i) => `MGR-${String(i + 1).padStart(2, "0")}`;
+const personName = (i) => `${FIRST_NAMES[i % FIRST_NAMES.length]} ${LAST_NAMES[(i * 7 + 3) % LAST_NAMES.length]}`;
+
+// Org directory — imported via POST /api/org/import before events are sent.
+const departments = DEPARTMENTS.map((name, i) => ({ department_id: deptId(i), name, head_employee_id: managerId(i) }));
+const orgEmployees = [
+	...DEPARTMENTS.map((_, i) => ({
+		employee_id: managerId(i),
+		name: personName(i + 100),
+		department_id: deptId(i),
+		role: "line_manager",
+		email: `${managerId(i).toLowerCase()}@ohcs.gov.gh`,
+	})),
+	{ employee_id: "HR-001", name: personName(150), department_id: deptId(2), role: "hr_officer", email: "hr-001@ohcs.gov.gh" },
+	{ employee_id: "DIR-001", name: personName(200), department_id: deptId(0), role: "director", email: "dir-001@ohcs.gov.gh" },
+];
 
 const employees = Array.from({ length: EMPLOYEES }, (_, i) => ({
 	id: `EMP-${String(i + 1).padStart(4, "0")}`,
 	dept: DEPARTMENTS[i % DEPARTMENTS.length],
+	deptIdx: i % DEPARTMENTS.length,
 }));
+orgEmployees.push(
+	...employees.map((emp, i) => ({
+		employee_id: emp.id,
+		name: personName(i),
+		department_id: deptId(emp.deptIdx),
+		role: "staff",
+		email: `${emp.id.toLowerCase()}@ohcs.gov.gh`,
+		card_id: `CARD-${String(i + 1).padStart(4, "0")}`,
+	})),
+);
 
 const periodStart = new Date();
 periodStart.setMonth(periodStart.getMonth() - MONTHS);
@@ -124,16 +155,16 @@ for (let i = 0; i < leaveCount; i++) {
 	// 10% bypass line-manager review — conformance violations for the checker to find.
 	if (rand() >= 0.1) {
 		t += (12 + rand() * 60) * 3600_000; // 12–72h
-		step("manager_review", `mgr-${emp.dept}`, { decision: "approved" });
+		step("manager_review", managerId(emp.deptIdx), { decision: "approved" });
 	}
 	t += (24 + rand() * 120) * 3600_000; // 1–6d — deliberately the slow step
-	step("hr_verification", "hr-officer-1");
+	step("hr_verification", "HR-001");
 	if (rand() < 0.15) {
-		step("rejected", "hr-officer-1", { reason: "insufficient balance" });
+		step("rejected", "HR-001", { reason: "insufficient balance" });
 		continue;
 	}
 	t += (24 + rand() * 72) * 3600_000; // 1–4d
-	step("director_approval", "director-1");
+	step("director_approval", "DIR-001");
 	step("completed", "system");
 }
 
@@ -156,6 +187,21 @@ for (const d = new Date(periodStart); d <= periodEnd; d.setDate(d.getDate() + 1)
 }
 
 events.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+
+// --- Import the org directory first (subsystems validate against it) ---
+{
+	const res = await fetch(`${BASE}/api/org/import`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ departments, employees: orgEmployees }),
+	});
+	if (!res.ok) {
+		console.error(`Org import failed (${res.status}):`, await res.text());
+		process.exit(1);
+	}
+	const { employees: imported } = await res.json();
+	console.log(`Org imported: ${imported} employees, ${departments.length} departments`);
+}
 
 // --- POST in batches, fail fast on the first error ---
 let sent = 0;

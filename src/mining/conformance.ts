@@ -44,6 +44,9 @@ export function checkLeaveConformance(events: TraceEvent[]): Deviation[] {
 }
 
 function checkTrace(caseId: string, activities: string[]): Deviation[] {
+	// Cancellation is a legitimate exit by the requester, not a process deviation.
+	if (activities.includes("cancelled")) return [];
+
 	const expected = expectedSequence(activities);
 	const present = new Set(activities);
 

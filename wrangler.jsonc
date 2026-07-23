@@ -15,9 +15,10 @@
     "ENVIRONMENT": "local"
   },
 
-  // Process mining runs every 6 hours (PRD §4.2).
+  // Process mining every 6h (PRD §4.2); daily anomaly/escalation checks at 18:43
+  // UTC, after OHCS work hours (PRD §5.2, §5.3).
   "triggers": {
-    "crons": ["17 */6 * * *"]
+    "crons": ["17 */6 * * *", "43 18 * * *"]
   },
 
   "d1_databases": [

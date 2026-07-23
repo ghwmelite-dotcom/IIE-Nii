@@ -2,13 +2,20 @@ import { Hono } from "hono";
 import { canonicalEventSchema, eventBatchSchema, insertEvents, toStoredEvent } from "./lib/events";
 import type { EventRow } from "./lib/events";
 import intelligence from "./routes/intelligence";
+import attendance from "./routes/attendance";
+import leave from "./routes/leave";
+import org from "./routes/org";
 import { runMiningJob } from "./mining/job";
+import { runDailyChecks } from "./jobs/daily";
 
 const app = new Hono<{ Bindings: Env }>();
 
 app.get("/health", (c) => c.json({ status: "ok", environment: c.env.ENVIRONMENT }));
 
 app.route("/api/intelligence", intelligence);
+app.route("/api/attendance", attendance);
+app.route("/api/leave", leave);
+app.route("/api/org", org);
 
 // Ingest a single event into the Unified Event Log.
 app.post("/api/events", async (c) => {
@@ -66,8 +73,13 @@ app.onError((err, c) => {
 
 export default {
 	fetch: app.fetch,
-	// Process mining on the event log, 6-hourly (PRD §4.2).
+	// Two schedules (PRD §4.2, §5.2): process mining every 6h; attendance/leave
+	// housekeeping daily after work hours (Accra = UTC).
 	async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-		ctx.waitUntil(runMiningJob(env));
+		if (controller.cron === "43 18 * * *") {
+			ctx.waitUntil(runDailyChecks(env));
+		} else {
+			ctx.waitUntil(runMiningJob(env));
+		}
 	},
 } satisfies ExportedHandler<Env>;
