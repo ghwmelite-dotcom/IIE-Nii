@@ -19,9 +19,9 @@ describe("process intelligence end-to-end", () => {
 	beforeAll(async () => {
 		await applyMigrations();
 		const events = [
-			...leaveCase("CASE-FULL", ["leave_submitted", "manager_review", "hr_verification", "director_approval", "completed"]),
-			...leaveCase("CASE-BYPASS", ["leave_submitted", "hr_verification", "director_approval", "completed"]),
-			...leaveCase("CASE-REJECTED", ["leave_submitted", "manager_review", "hr_verification", "rejected"]),
+			...leaveCase("CASE-FULL", ["leave_submitted", "supervisor_review", "fa_verification", "director_fa_approval", "completed"]),
+			...leaveCase("CASE-BYPASS", ["leave_submitted", "fa_verification", "director_fa_approval", "completed"]),
+			...leaveCase("CASE-REJECTED", ["leave_submitted", "supervisor_review", "fa_verification", "rejected"]),
 			{
 				case_id: "att-EMP-1-2026-03-01",
 				activity: "clock_in",
@@ -51,17 +51,17 @@ describe("process intelligence end-to-end", () => {
 		const model = body.models[0];
 		expect(model.case_count).toBe(3);
 		const signatures = model.variants.map((v) => v.activities.join(">"));
-		expect(signatures).toContain("leave_submitted>manager_review>hr_verification>director_approval>completed");
-		expect(signatures).toContain("leave_submitted>hr_verification>director_approval>completed");
+		expect(signatures).toContain("leave_submitted>supervisor_review>fa_verification>director_fa_approval>completed");
+		expect(signatures).toContain("leave_submitted>fa_verification>director_fa_approval>completed");
 	});
 
 	it("computes bottleneck stats for the transitions", async () => {
 		const res = await apiGet("/api/intelligence/bottlenecks?source=LEAVE_WORKFLOW");
 		const body = (await res.json()) as { bottlenecks: { activity_pair: string; median_ms: number }[] };
 		const pairs = body.bottlenecks.map((b) => b.activity_pair);
-		expect(pairs).toContain("leave_submitted -> manager_review");
-		expect(pairs).toContain("manager_review -> hr_verification");
-		const step = body.bottlenecks.find((b) => b.activity_pair === "leave_submitted -> manager_review");
+		expect(pairs).toContain("leave_submitted -> supervisor_review");
+		expect(pairs).toContain("supervisor_review -> fa_verification");
+		const step = body.bottlenecks.find((b) => b.activity_pair === "leave_submitted -> supervisor_review");
 		expect(step?.median_ms).toBeGreaterThan(0);
 	});
 

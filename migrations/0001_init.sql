@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS leave_requests (
     start_date   TEXT NOT NULL,
     end_date     TEXT NOT NULL,
     status       TEXT NOT NULL DEFAULT 'submitted',
-    current_step TEXT NOT NULL DEFAULT 'manager_review',
+    current_step TEXT NOT NULL DEFAULT 'supervisor_review',
     created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 

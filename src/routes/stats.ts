@@ -4,17 +4,22 @@ const app = new Hono<{ Bindings: Env }>();
 
 // Last event activity per leave case, derived from the event log (the source of
 // truth, PRD §4) so seeded history counts too. rowid breaks timestamp ties
-// (seeded director_approval + completed share a timestamp; insertion order is
-// chronological).
+// (seeded approval + completed share a timestamp; insertion order is
+// chronological). leave_type comes from each case's submission event — the
+// post-supervisor step forks on it (study → RTDD, others → F&A).
 const PIPELINE_SQL = `
-SELECT e.activity, COUNT(*) AS count
+SELECT e.activity,
+       (SELECT json_extract(s.metadata, '$.leave_type') FROM events s
+         WHERE s.case_id = e.case_id AND s.activity = 'leave_submitted' LIMIT 1) AS leave_type,
+       COUNT(*) AS count
 FROM events e
 WHERE e.source_system = 'LEAVE_WORKFLOW'
   AND e.rowid = (SELECT MAX(rowid) FROM events WHERE case_id = e.case_id)
-GROUP BY e.activity`;
+GROUP BY e.activity, leave_type`;
 
 interface PipelineRow {
 	activity: string;
+	leave_type: string | null;
 	count: number;
 }
 
@@ -26,12 +31,16 @@ app.get("/leave-pipeline", async (c) => {
 		// A case whose last event is activity X is waiting at the step after X.
 		const waitingAt =
 			row.activity === "leave_submitted"
-				? "manager_review"
-				: row.activity === "manager_review"
-					? "hr_verification"
-					: row.activity === "hr_verification"
-						? "director_approval"
-						: row.activity; // completed | rejected | cancelled | escalated
+				? "supervisor_review"
+				: row.activity === "supervisor_review"
+					? row.leave_type === "study"
+						? "rtdd_review"
+						: "fa_verification"
+					: row.activity === "fa_verification"
+						? "director_fa_approval"
+						: row.activity === "rtdd_review"
+							? "director_rtdd_approval"
+							: row.activity; // completed | rejected | cancelled | escalated
 		stages[waitingAt] = (stages[waitingAt] ?? 0) + row.count;
 	}
 	return c.json({ stages });
@@ -58,7 +67,7 @@ app.get("/overview", async (c) => {
 
 	let leaveOpen = 0;
 	for (const row of pipeline.results) {
-		if (["leave_submitted", "manager_review", "hr_verification", "director_approval", "escalated"].includes(row.activity)) {
+		if (["leave_submitted", "supervisor_review", "fa_verification", "director_fa_approval", "rtdd_review", "director_rtdd_approval", "escalated"].includes(row.activity)) {
 			leaveOpen += row.count;
 		}
 	}
@@ -112,7 +121,7 @@ app.get("/department-insights", async (c) => {
 		`SELECT json_extract(metadata, '$.department') AS department,
 		        COUNT(*) AS clock_ins,
 		        SUM(CASE WHEN json_extract(metadata, '$.late') = 1 THEN 1 ELSE 0 END) AS late
-		 FROM events WHERE activity = 'clock_in'
+		 FROM events WHERE activity = 'clock_in' AND json_extract(metadata, '$.department') IS NOT NULL
 		 GROUP BY department`,
 	).all<{ department: string; clock_ins: number; late: number | null }>();
 

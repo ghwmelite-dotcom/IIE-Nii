@@ -55,4 +55,27 @@ describe("event ingestion API", () => {
 		const res = await apiGet("/api/events");
 		expect(res.status).toBe(400);
 	});
+
+	it("streams newly ingested events over SSE", async () => {
+		const res = await apiGet("/api/events/stream");
+		expect(res.status).toBe(200);
+		expect(res.headers.get("content-type")).toBe("text/event-stream");
+
+		const reader = res.body!.getReader();
+		try {
+			// Ingest after connecting — the stream must push it within one flush interval.
+			await apiPost("/api/events", { ...VALID_EVENT, case_id: "SSE-1" });
+			const deadline = Date.now() + 8000;
+			let received = "";
+			while (Date.now() < deadline && !received.includes("SSE-1")) {
+				const { value, done } = await reader.read();
+				if (done) break;
+				received += new TextDecoder().decode(value);
+			}
+			expect(received).toContain("SSE-1");
+			expect(received).toContain("data: ");
+		} finally {
+			await reader.cancel();
+		}
+	}, 15_000);
 });

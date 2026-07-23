@@ -100,13 +100,13 @@ await getJson("/api/intelligence/run", { method: "POST", headers, body: "{}" });
 
 // ── 3. Bottleneck detection finds the planted slow step (>90% acc.) ─
 {
-	// Ground truth (by seed design): hr_verification is the slowest step.
+	// Ground truth (by seed design): fa_verification is the slowest step.
 	const { bottlenecks } = await getJson("/api/intelligence/bottlenecks?source=LEAVE_WORKFLOW");
 	const top = bottlenecks[0];
-	const found = top && top.activity_pair.includes("hr_verification");
+	const found = top && top.activity_pair.includes("fa_verification");
 	report(
 		"Bottleneck detection (slowest step)",
-		"hr_verification transition flagged",
+		"fa_verification transition flagged",
 		top ? `${top.activity_pair} (median ${(top.median_ms / 86_400_000).toFixed(1)}d, p95 ${(top.p95_ms / 86_400_000).toFixed(1)}d)` : "none",
 		found,
 	);
@@ -115,14 +115,14 @@ await getJson("/api/intelligence/run", { method: "POST", headers, body: "{}" });
 // ── 4. Conformance flags > 80% of known violations ─────────────────
 {
 	// Independent ground truth ("manual audit") straight from the log:
-	// terminal cases that reached hr_verification without manager_review.
+	// terminal cases that reached verification (F&A or RTDD) without supervisor_review.
 	const sql = `WITH terminal AS (
     SELECT DISTINCT case_id FROM events
     WHERE source_system = 'LEAVE_WORKFLOW' AND activity IN ('completed','rejected')),
   acts AS (
     SELECT case_id,
-      MAX(CASE WHEN activity = 'manager_review' THEN 1 ELSE 0 END) AS has_mgr,
-      MAX(CASE WHEN activity = 'hr_verification' THEN 1 ELSE 0 END) AS has_hr
+      MAX(CASE WHEN activity = 'supervisor_review' THEN 1 ELSE 0 END) AS has_mgr,
+      MAX(CASE WHEN activity IN ('fa_verification','rtdd_review') THEN 1 ELSE 0 END) AS has_hr
     FROM events WHERE source_system = 'LEAVE_WORKFLOW' GROUP BY case_id)
   SELECT a.case_id FROM acts a JOIN terminal t ON t.case_id = a.case_id
   WHERE a.has_mgr = 0 AND a.has_hr = 1`;

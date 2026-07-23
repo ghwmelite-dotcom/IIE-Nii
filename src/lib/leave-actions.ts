@@ -25,7 +25,7 @@ export async function createLeaveRequest(
 ): Promise<{ requestId: string; currentStep: string }> {
 	const requestId = crypto.randomUUID();
 	const now = new Date().toISOString();
-	const firstStep = "manager_review";
+	const firstStep = "supervisor_review";
 
 	await db.batch([
 		db.prepare(

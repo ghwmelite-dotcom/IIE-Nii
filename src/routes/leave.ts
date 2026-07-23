@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { insertEvents, toStoredEvent } from "../lib/events";
 import { createLeaveRequest } from "../lib/leave-actions";
-import { STEP_RULES, isLeaveStep } from "../lib/workflow";
+import { STEP_RULES, isLeaveStep, nextStep } from "../lib/workflow";
 import type { LeaveStep } from "../lib/workflow";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -39,6 +39,31 @@ interface LeaveRequestRow {
 	current_step: string;
 	created_at: string;
 }
+
+// List leave requests: ?employee_id=X for "my requests" (latest first);
+// no param = the approver inbox (pending only, optional ?current_step= filter).
+app.get("/", async (c) => {
+	const employeeId = c.req.query("employee_id");
+	const step = c.req.query("current_step");
+
+	if (employeeId) {
+		const { results } = await c.env.DB.prepare(
+			"SELECT * FROM leave_requests WHERE employee_id = ? ORDER BY created_at DESC LIMIT 200",
+		)
+			.bind(employeeId)
+			.all<LeaveRequestRow>();
+		return c.json({ requests: results });
+	}
+
+	const { results } = step
+		? await c.env.DB.prepare(
+				"SELECT * FROM leave_requests WHERE status = 'pending' AND current_step = ? ORDER BY created_at ASC LIMIT 200",
+			)
+				.bind(step)
+				.all<LeaveRequestRow>()
+		: await c.env.DB.prepare("SELECT * FROM leave_requests WHERE status = 'pending' ORDER BY created_at ASC LIMIT 200").all<LeaveRequestRow>();
+	return c.json({ requests: results });
+});
 
 // Submit a new leave request (PRD §5.3).
 app.post("/request", async (c) => {
@@ -101,12 +126,17 @@ app.post("/:id/transition", async (c) => {
 		return c.json({ error: `Request is in a non-actionable step: ${step}` }, 409);
 	}
 	const rule = STEP_RULES[step];
-	// Line-manager approvals must come from a manager in the requester's department.
+	// Supervisor reviews must come from the requester's own unit; verification and
+	// approval steps are scoped to their administering directorate (F&A / RTDD).
 	const requester = await c.env.DB.prepare("SELECT department_id FROM employees WHERE employee_id = ?")
 		.bind(request.employee_id)
 		.first<{ department_id: string }>();
-	if (actor.role !== rule.role || (rule.departmentScoped && actor.department_id !== requester?.department_id)) {
-		return c.json({ error: `Step '${step}' requires role '${rule.role}'${rule.departmentScoped ? " in the requester's department" : ""}` }, 403);
+	const wrongDepartment =
+		(rule.departmentScoped && actor.department_id !== requester?.department_id) ||
+		(rule.departmentId !== undefined && actor.department_id !== rule.departmentId);
+	if (actor.role !== rule.role || wrongDepartment) {
+		const scope = rule.departmentScoped ? " in the requester's department" : rule.departmentId ? ` in ${rule.departmentId}` : "";
+		return c.json({ error: `Step '${step}' requires role '${rule.role}'${scope}` }, 403);
 	}
 
 	if (parsed.data.action === "reject") {
@@ -118,9 +148,9 @@ app.post("/:id/transition", async (c) => {
 		return c.json({ request_id: requestId, status: "rejected" });
 	}
 
-	// approve
+	// approve — the next step may fork on the leave type (study → RTDD chain).
 	await recordStep(c.env.DB, request, step, "approved", actor, now);
-	const next = rule.next;
+	const next = nextStep(step, request.type);
 	if (next === "completed") {
 		await finishRequest(c.env.DB, request, step, "completed", actor, now);
 		return c.json({ request_id: requestId, status: "completed" });
@@ -168,7 +198,7 @@ async function recordStep(
 			resource: actor.employee_id,
 			timestamp: now,
 			source_system: "LEAVE_WORKFLOW",
-			metadata: { request_id: request.request_id, decision, from_step: step, to_step: decision === "rejected" ? "rejected" : STEP_RULES[step].next, ...(reason ? { reason } : {}) },
+			metadata: { request_id: request.request_id, decision, from_step: step, to_step: decision === "rejected" ? "rejected" : nextStep(step, request.type), ...(reason ? { reason } : {}) },
 		}),
 	]);
 }

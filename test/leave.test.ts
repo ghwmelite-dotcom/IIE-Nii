@@ -5,10 +5,10 @@ interface CreatedRequest {
 	request_id: string;
 }
 
-async function createRequest(employee = "EMP-1"): Promise<string> {
+async function createRequest(employee = "EMP-1", type = "annual"): Promise<string> {
 	const res = await apiPost("/api/leave/request", {
 		employee_id: employee,
-		type: "annual",
+		type,
 		start_date: "2026-08-03",
 		end_date: "2026-08-07",
 	});
@@ -30,23 +30,59 @@ describe("leave workflow state machine", () => {
 		const id = await createRequest();
 
 		expect((await transition(id, "approve", "MGR-1")).status).toBe(200);
-		expect((await transition(id, "approve", "HR-1")).status).toBe(200);
-		const done = await transition(id, "approve", "DIR-1");
+		expect((await transition(id, "approve", "ADM-F&A")).status).toBe(200);
+		const done = await transition(id, "approve", "DIR-F&A");
 		expect(done.status).toBe(200);
 		expect(((await done.json()) as { status: string }).status).toBe("completed");
 
 		const trace = (await (await apiGet(`/api/events?case_id=${id}`)).json()) as { events: { activity: string }[] };
 		expect(trace.events.map((e) => e.activity)).toEqual([
 			"leave_submitted",
-			"manager_review",
-			"hr_verification",
-			"director_approval",
+			"supervisor_review",
+			"fa_verification",
+			"director_fa_approval",
 			"completed",
 		]);
 
 		const status = (await (await apiGet(`/api/leave/${id}/status`)).json()) as { status: string; history: unknown[] };
 		expect(status.status).toBe("completed");
 		expect(status.history).toHaveLength(4);
+	});
+
+	it("routes study leave through RTDD: schedule officer reviews, Director RTDD approves", async () => {
+		const id = await createRequest("EMP-1", "study");
+
+		expect((await transition(id, "approve", "MGR-1")).status).toBe(200);
+		// After supervisor review a study request waits at rtdd_review — F&A cannot touch it.
+		const status = (await (await apiGet(`/api/leave/${id}/status`)).json()) as { current_step: string };
+		expect(status.current_step).toBe("rtdd_review");
+		expect((await transition(id, "approve", "ADM-F&A")).status).toBe(403);
+		expect((await transition(id, "approve", "SO-RTDD")).status).toBe(200);
+		// Only Director RTDD may approve study leave.
+		expect((await transition(id, "approve", "DIR-F&A")).status).toBe(403);
+		const done = await transition(id, "approve", "DIR-RTDD");
+		expect(((await done.json()) as { status: string }).status).toBe("completed");
+
+		const trace = (await (await apiGet(`/api/events?case_id=${id}`)).json()) as { events: { activity: string }[] };
+		expect(trace.events.map((e) => e.activity)).toEqual([
+			"leave_submitted",
+			"supervisor_review",
+			"rtdd_review",
+			"director_rtdd_approval",
+			"completed",
+		]);
+	});
+
+	it("restricts F&A verification and approval to F&A officers", async () => {
+		const id = await createRequest();
+		await transition(id, "approve", "MGR-1");
+		// RTDD's schedule officer cannot verify standard leave; CMD HR cannot either.
+		expect((await transition(id, "approve", "SO-RTDD")).status).toBe(403);
+		expect((await transition(id, "approve", "HR-1")).status).toBe(403);
+		await transition(id, "approve", "ADM-F&A");
+		// A director from outside F&A cannot give final approval.
+		expect((await transition(id, "approve", "DIR-RTDD")).status).toBe(403);
+		expect((await transition(id, "approve", "DIR-F&A")).status).toBe(200);
 	});
 
 	it("enforces step roles and department scoping", async () => {
@@ -57,7 +93,7 @@ describe("leave workflow state machine", () => {
 		// Manager of the other department cannot act either
 		expect((await transition(id, "approve", "MGR-2")).status).toBe(403);
 		// Director cannot skip ahead
-		expect((await transition(id, "approve", "DIR-1")).status).toBe(403);
+		expect((await transition(id, "approve", "DIR-F&A")).status).toBe(403);
 	});
 
 	it("requires a reason for rejection", async () => {
@@ -103,5 +139,39 @@ describe("leave workflow state machine", () => {
 			end_date: "2026-08-03",
 		});
 		expect(res.status).toBe(400);
+	});
+
+	it("lists an employee's own requests, latest first", async () => {
+		const first = await createRequest();
+		const second = await createRequest();
+
+		const res = await apiGet("/api/leave?employee_id=EMP-1");
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { requests: { request_id: string; employee_id: string }[] };
+		expect(body.requests.length).toBeGreaterThanOrEqual(2);
+		expect(body.requests.every((r) => r.employee_id === "EMP-1")).toBe(true);
+		expect(body.requests[0].request_id).toBe(second);
+		expect(body.requests.map((r) => r.request_id)).toContain(first);
+	});
+
+	it("lists the pending approver inbox, filterable by step", async () => {
+		const id = await createRequest();
+
+		const inbox = (await (await apiGet("/api/leave")).json()) as {
+			requests: { request_id: string; status: string; current_step: string }[];
+		};
+		expect(inbox.requests.every((r) => r.status === "pending")).toBe(true);
+		expect(inbox.requests.map((r) => r.request_id)).toContain(id);
+
+		const atStep = (await (await apiGet("/api/leave?current_step=supervisor_review")).json()) as {
+			requests: { request_id: string; current_step: string }[];
+		};
+		expect(atStep.requests.every((r) => r.current_step === "supervisor_review")).toBe(true);
+		expect(atStep.requests.map((r) => r.request_id)).toContain(id);
+
+		const wrongStep = (await (await apiGet("/api/leave?current_step=director_fa_approval")).json()) as {
+			requests: { request_id: string }[];
+		};
+		expect(wrongStep.requests.map((r) => r.request_id)).not.toContain(id);
 	});
 });

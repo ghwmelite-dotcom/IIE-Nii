@@ -68,4 +68,12 @@ app.post("/import", apiKeyAuth, async (c) => {
 	return c.json({ departments: departments.length, employees: employees.length }, 201);
 });
 
+// Org directory listing — drives employee pickers in the dashboard.
+app.get("/employees", async (c) => {
+	const { results } = await c.env.DB.prepare(
+		"SELECT employee_id, name, department_id, role FROM employees ORDER BY employee_id",
+	).all();
+	return c.json({ employees: results });
+});
+
 export default app;

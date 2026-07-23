@@ -224,7 +224,7 @@ app.post("/message", async (c) => {
 				start_date: intent.start_date,
 				end_date: intent.end_date,
 			});
-			reply = `Done — your ${type} leave request (${intent.start_date} to ${intent.end_date}) is submitted and now with your line manager for review. Reference: ${requestId}. I'll let you know as it moves.`;
+			reply = `Done — your ${type} leave request (${intent.start_date} to ${intent.end_date}) is submitted and now with your supervisor for review. Reference: ${requestId}. I'll let you know as it moves.`;
 			break;
 		}
 

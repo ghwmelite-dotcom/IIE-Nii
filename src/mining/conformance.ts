@@ -1,21 +1,16 @@
 /**
  * Conformance checking (PRD §6.3). Compares each leave-workflow trace against
- * the prescribed process model. Two deviation types: skipped_step (a required
- * activity never occurs) and out_of_order (required activities occur in the
- * wrong sequence). Score = fraction of expected steps present and ordered.
+ * the prescribed process model for its leave type: standard types route through
+ * F&A, study leave through RTDD (src/lib/workflow.ts). Two deviation types:
+ * skipped_step (a required activity never occurs) and out_of_order (required
+ * activities occur in the wrong sequence). Score = fraction of expected steps
+ * present and ordered.
  *
  * The prescribed model lives in code for now; PRD moves it to KV config later.
  */
 
+import { prescribedChain, STUDY_LEAVE_TYPE } from "../lib/workflow";
 import type { TraceEvent } from "./graph";
-
-export const PRESCRIBED_LEAVE = [
-	"leave_submitted",
-	"manager_review",
-	"hr_verification",
-	"director_approval",
-	"completed",
-] as const;
 
 export interface Deviation {
 	case_id: string;
@@ -25,6 +20,7 @@ export interface Deviation {
 }
 
 const TERMINAL_ACTIVITIES = new Set(["completed", "rejected", "cancelled"]);
+const STUDY_ACTIVITIES = new Set(["rtdd_review", "director_rtdd_approval"]);
 
 /** events must arrive ordered by case_id, then timestamp. */
 export function checkLeaveConformance(events: TraceEvent[]): Deviation[] {
@@ -85,12 +81,16 @@ function checkTrace(caseId: string, activities: string[]): Deviation[] {
 	return deviations.map((d) => ({ ...d, score: Math.max(0, score) }));
 }
 
-/** The steps a trace should contain, given how it ended. */
+/** The steps a trace should contain, given its chain (F&A vs RTDD) and how it ended. */
 function expectedSequence(activities: string[]): string[] {
-	if (!activities.includes("rejected")) return [...PRESCRIBED_LEAVE];
+	// Study leave is identifiable by its RTDD-only activities; a study case
+	// rejected at supervisor_review has neither, but the rejected-case cut below
+	// trims the chain before the fork anyway, so the choice is safe.
+	const chain = prescribedChain(activities.some((a) => STUDY_ACTIVITIES.has(a)) ? STUDY_LEAVE_TYPE : "annual");
+	if (!activities.includes("rejected")) return chain;
 	// For rejected cases only the steps up to the rejecting step are expected.
 	const rejectIdx = activities.lastIndexOf("rejected");
 	const rejectingStep = rejectIdx > 0 ? activities[rejectIdx - 1] : null;
-	const cutIdx = (PRESCRIBED_LEAVE as readonly string[]).indexOf(rejectingStep ?? "");
-	return [...PRESCRIBED_LEAVE.slice(0, Math.max(0, cutIdx) + 1), "rejected"];
+	const cutIdx = chain.indexOf(rejectingStep ?? "");
+	return [...chain.slice(0, Math.max(0, cutIdx) + 1), "rejected"];
 }

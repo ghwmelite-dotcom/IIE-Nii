@@ -53,39 +53,39 @@ describe("checkLeaveConformance", () => {
 
 	it("accepts the prescribed full chain", () => {
 		expect(
-			checkLeaveConformance(chain(["leave_submitted", "manager_review", "hr_verification", "director_approval", "completed"])),
+			checkLeaveConformance(chain(["leave_submitted", "supervisor_review", "fa_verification", "director_fa_approval", "completed"])),
 		).toHaveLength(0);
 	});
 
 	it("flags a manager bypass as skipped_step", () => {
-		const deviations = checkLeaveConformance(chain(["leave_submitted", "hr_verification", "director_approval", "completed"]));
+		const deviations = checkLeaveConformance(chain(["leave_submitted", "fa_verification", "director_fa_approval", "completed"]));
 		expect(deviations).toHaveLength(1);
 		expect(deviations[0].deviation_type).toBe("skipped_step");
-		expect(deviations[0].description).toContain("manager_review");
+		expect(deviations[0].description).toContain("supervisor_review");
 		expect(deviations[0].score).toBeCloseTo(0.8, 2);
 	});
 
 	it("accepts rejection after HR verification (prescribed prefix)", () => {
-		expect(checkLeaveConformance(chain(["leave_submitted", "manager_review", "hr_verification", "rejected"]))).toHaveLength(0);
+		expect(checkLeaveConformance(chain(["leave_submitted", "supervisor_review", "fa_verification", "rejected"]))).toHaveLength(0);
 	});
 
 	it("flags a bypass that ends in rejection", () => {
-		const deviations = checkLeaveConformance(chain(["leave_submitted", "hr_verification", "rejected"]));
+		const deviations = checkLeaveConformance(chain(["leave_submitted", "fa_verification", "rejected"]));
 		expect(deviations.some((d) => d.deviation_type === "skipped_step")).toBe(true);
 	});
 
 	it("exempts cancellations", () => {
-		expect(checkLeaveConformance(chain(["leave_submitted", "manager_review", "cancelled"]))).toHaveLength(0);
+		expect(checkLeaveConformance(chain(["leave_submitted", "supervisor_review", "cancelled"]))).toHaveLength(0);
 	});
 
 	it("ignores in-flight (non-terminal) cases", () => {
 		expect(checkLeaveConformance(chain(["leave_submitted"]))).toHaveLength(0);
-		expect(checkLeaveConformance(chain(["leave_submitted", "manager_review"]))).toHaveLength(0);
+		expect(checkLeaveConformance(chain(["leave_submitted", "supervisor_review"]))).toHaveLength(0);
 	});
 
 	it("flags out-of-order execution", () => {
 		const deviations = checkLeaveConformance(
-			chain(["leave_submitted", "hr_verification", "manager_review", "director_approval", "completed"]),
+			chain(["leave_submitted", "fa_verification", "supervisor_review", "director_fa_approval", "completed"]),
 		);
 		expect(deviations.some((d) => d.deviation_type === "out_of_order")).toBe(true);
 	});

@@ -59,14 +59,14 @@ export async function generateRecommendations(env: Env): Promise<Recommendation[
 	const caseCount = modelRows[0]?.case_count ?? 0;
 	if (deviations.length > 0 && caseCount > 0) {
 		const rate = deviations.length / caseCount;
-		const skippedManager = deviations.filter((d) => d.description.includes("manager_review")).length;
+		const skippedManager = deviations.filter((d) => d.description.includes("supervisor_review")).length;
 		recommendations.push({
 			kind: "conformance",
 			severity: rate > 0.1 ? "high" : rate > 0.05 ? "medium" : "low",
 			title: `${deviations.length} of ${caseCount} cases deviate from the prescribed workflow`,
 			detail:
 				skippedManager > 0
-					? `${skippedManager} case(s) bypassed line-manager review entirely. Enforce routing at submission or audit the affected departments.`
+					? `${skippedManager} case(s) bypassed supervisor review entirely. Enforce routing at submission or audit the affected departments.`
 					: `Review the ${deviations.length} flagged case(s) for out-of-order execution.`,
 		});
 	}
