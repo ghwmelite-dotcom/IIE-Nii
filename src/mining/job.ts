@@ -9,7 +9,7 @@
 
 import { buildModel } from "./graph";
 import type { TraceEvent } from "./graph";
-import { computeBottlenecks } from "./bottlenecks";
+import { computeBottlenecks, DEFAULT_FLAG_THRESHOLDS_MS } from "./bottlenecks";
 import { checkLeaveConformance } from "./conformance";
 
 export interface MiningSummary {
@@ -77,7 +77,11 @@ export async function runMiningJob(env: Env): Promise<MiningSummary> {
 		);
 	}
 
-	const bottlenecks = await computeBottlenecks(env.DB);
+	// SLA thresholds: CONFIG KV override, code defaults otherwise.
+	const fromKv = env.CONFIG ? await env.CONFIG.get("bottleneck_thresholds_ms", "json").catch(() => null) : null;
+	const thresholds = (fromKv as Record<string, number> | null) ?? DEFAULT_FLAG_THRESHOLDS_MS;
+
+	const bottlenecks = await computeBottlenecks(env.DB, thresholds);
 	for (const b of bottlenecks) {
 		statements.push(
 			env.DB.prepare(

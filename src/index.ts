@@ -71,8 +71,8 @@ app.get("/api/events", async (c) => {
 	return c.json({ case_id: caseId, count: events.length, events });
 });
 
-// Latest events across all systems — the dashboard's live feed (polled; PRD's
-// SSE variant /api/events/stream is a later refinement).
+// Latest events across all systems — the dashboard feed's initial load and the
+// polling fallback for when the SSE stream (/api/events/stream) is unavailable.
 app.get("/api/events/recent", async (c) => {
 	const limit = Math.min(Number(c.req.query("limit") ?? 25) || 25, 200);
 	const { results } = await c.env.DB.prepare(
@@ -84,6 +84,57 @@ app.get("/api/events/recent", async (c) => {
 
 	const events = results.map((row) => ({ ...row, metadata: JSON.parse(row.metadata) as unknown }));
 	return c.json({ events });
+});
+
+// Server-sent events live feed (PRD §4.2). Streams events inserted after the
+// client connects; the dashboard falls back to polling /recent if this errors.
+app.get("/api/events/stream", (c) => {
+	const db = c.env.DB;
+	const encoder = new TextEncoder();
+
+	const stream = new ReadableStream<Uint8Array>({
+		async start(controller) {
+			let timer: ReturnType<typeof setInterval> | undefined;
+			const stop = () => {
+				if (timer !== undefined) clearInterval(timer);
+				timer = undefined;
+			};
+			try {
+				// Only events inserted from now on — initial state comes from /recent.
+				let lastRowid = (await db.prepare("SELECT MAX(rowid) AS m FROM events").first<{ m: number | null }>())?.m ?? 0;
+				const flush = async () => {
+					const { results } = await db
+						.prepare(
+							`SELECT rowid, event_id, case_id, activity, resource, "timestamp", source_system, metadata
+							 FROM events WHERE rowid > ? ORDER BY rowid LIMIT 100`,
+						)
+						.bind(lastRowid)
+						.all<EventRow & { rowid: number }>();
+					for (const { rowid, metadata, ...row } of results) {
+						lastRowid = Math.max(lastRowid, rowid);
+						controller.enqueue(encoder.encode(`data: ${JSON.stringify({ ...row, metadata: JSON.parse(metadata) })}\n\n`));
+					}
+					controller.enqueue(encoder.encode(`: heartbeat\n\n`));
+				};
+				await flush();
+				timer = setInterval(() => {
+					flush().catch(() => stop());
+				}, 2000);
+				c.req.raw.signal.addEventListener("abort", stop);
+			} catch {
+				stop();
+				controller.close();
+			}
+		},
+	});
+
+	return new Response(stream, {
+		headers: {
+			"Content-Type": "text/event-stream",
+			"Cache-Control": "no-cache",
+			Connection: "keep-alive",
+		},
+	});
 });
 
 app.notFound((c) => {

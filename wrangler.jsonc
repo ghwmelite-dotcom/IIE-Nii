@@ -43,6 +43,13 @@
     { "binding": "POLICY_DOCS", "bucket_name": "iie-policy-docs" }
   ],
 
+  // Runtime config (bottleneck SLA thresholds, etc.). Local dev works with the
+  // placeholder id; for remote, `wrangler kv namespace create CONFIG` and put
+  // the real id here.
+  "kv_namespaces": [
+    { "binding": "CONFIG", "id": "local-config-placeholder" }
+  ],
+
   // Dashboard SPA (web/, built with Vite). The Worker delegates non-/api paths
   // to the ASSETS binding (see notFound in src/index.ts), which applies the
   // single-page-application fallback for client-side navigation.

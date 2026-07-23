@@ -3,7 +3,8 @@
  * (window functions over the event log); percentiles and flagging run here.
  * Flag rule (PRD's "configurable threshold"): a pair is flagged when its median
  * duration exceeds the threshold configured for its source system. Thresholds
- * live in code for now; PRD moves them to KV config later.
+ * come from the CONFIG KV key "bottleneck_thresholds_ms", falling back to
+ * DEFAULT_FLAG_THRESHOLDS_MS when unset.
  */
 
 export interface BottleneckStat {
@@ -42,8 +43,9 @@ const DAY_MS = 24 * HOUR_MS;
 
 /** Flag pairs whose median duration exceeds the threshold for their source.
  *  Chat is deliberately unflagged: gaps between same-day queries are user
- *  think-time, not process delays. */
-const FLAG_THRESHOLDS_MS: Record<string, number> = {
+ *  think-time, not process delays. Overridable via the CONFIG KV key
+ *  "bottleneck_thresholds_ms" (same shape); these are the defaults. */
+export const DEFAULT_FLAG_THRESHOLDS_MS: Record<string, number> = {
 	LEAVE_WORKFLOW: 2 * DAY_MS, // approvals should move within ~2 days
 	ATTENDANCE: 12 * HOUR_MS, // clock_in -> clock_out beyond 12h is suspicious
 };
@@ -54,7 +56,10 @@ function percentile(sorted: number[], p: number): number {
 	return sorted[Math.min(sorted.length - 1, Math.max(0, rank - 1))];
 }
 
-export async function computeBottlenecks(db: D1Database): Promise<BottleneckStat[]> {
+export async function computeBottlenecks(
+	db: D1Database,
+	thresholds: Record<string, number> = DEFAULT_FLAG_THRESHOLDS_MS,
+): Promise<BottleneckStat[]> {
 	const { results } = await db.prepare(PAIR_DURATIONS_SQL).all<PairDurationRow>();
 
 	const durationsByPair = new Map<string, { source: string; pair: string; durations: number[] }>();
@@ -85,7 +90,7 @@ export async function computeBottlenecks(db: D1Database): Promise<BottleneckStat
 	});
 
 	for (const s of stats) {
-		const threshold = FLAG_THRESHOLDS_MS[s.source];
+		const threshold = thresholds[s.source];
 		s.flagged = threshold !== undefined && s.median_ms > threshold;
 	}
 
