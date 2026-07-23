@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { canonicalEventSchema, eventBatchSchema, insertEvents, toStoredEvent } from "./lib/events";
 import type { EventRow } from "./lib/events";
+import { apiKeyAuth } from "./lib/auth";
 import intelligence from "./routes/intelligence";
 import attendance from "./routes/attendance";
 import leave from "./routes/leave";
@@ -22,7 +23,7 @@ app.route("/api/chatbot", chatbot);
 app.route("/api/stats", stats);
 
 // Ingest a single event into the Unified Event Log.
-app.post("/api/events", async (c) => {
+app.post("/api/events", apiKeyAuth, async (c) => {
 	const body = await c.req.json().catch(() => null);
 	const parsed = canonicalEventSchema.safeParse(body);
 	if (!parsed.success) {
@@ -38,7 +39,7 @@ app.post("/api/events", async (c) => {
 });
 
 // Batch ingestion — used by the seed script and bursty subsystem producers.
-app.post("/api/events/batch", async (c) => {
+app.post("/api/events/batch", apiKeyAuth, async (c) => {
 	const body = await c.req.json().catch(() => null);
 	const parsed = eventBatchSchema.safeParse(body);
 	if (!parsed.success) {

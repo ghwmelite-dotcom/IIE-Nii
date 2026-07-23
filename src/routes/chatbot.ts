@@ -4,6 +4,7 @@ import { insertEvents, toStoredEvent } from "../lib/events";
 import { createLeaveRequest } from "../lib/leave-actions";
 import type { EmployeeRecord } from "../lib/leave-actions";
 import { ingestDocument, retrievePolicyChunks } from "../lib/rag";
+import { apiKeyAuth } from "../lib/auth";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -271,7 +272,7 @@ app.post("/message", async (c) => {
 });
 
 // Ingest a policy document into the RAG corpus (R2 + Vectorize).
-app.post("/ingest", async (c) => {
+app.post("/ingest", apiKeyAuth, async (c) => {
 	const body = await c.req.json().catch(() => null);
 	const parsed = ingestSchema.safeParse(body);
 	if (!parsed.success) {

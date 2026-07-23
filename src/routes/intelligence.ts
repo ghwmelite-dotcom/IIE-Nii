@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { runMiningJob } from "../mining/job";
 import { generateRecommendations } from "../lib/recommendations";
+import { apiKeyAuth } from "../lib/auth";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -98,7 +99,7 @@ app.get("/conformance", async (c) => {
 });
 
 // On-demand mining run (same code path as the cron trigger).
-app.post("/run", async (c) => {
+app.post("/run", apiKeyAuth, async (c) => {
 	const summary = await runMiningJob(c.env);
 	return c.json(summary);
 });

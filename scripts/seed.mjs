@@ -3,9 +3,11 @@
  * Synthetic event generator for the IIE event backbone.
  * Replays months of realistic OHCS operational events into POST /api/events/batch.
  *
- * Usage: node scripts/seed.mjs [--base URL] [--employees N] [--months N] [--seed N] [--batch N]
+ * Usage: node scripts/seed.mjs [--base URL] [--employees N] [--months N] [--seed N] [--batch N] [--key K]
  * Example: node scripts/seed.mjs --employees 10 --months 1   (quick smoke test)
  */
+
+import { readFileSync } from "node:fs";
 
 const args = Object.fromEntries(
 	process.argv.slice(2).reduce((acc, cur, i, arr) => {
@@ -22,6 +24,26 @@ const EMPLOYEES = Number(args.employees ?? 50);
 const MONTHS = Number(args.months ?? 6);
 const SEED = Number(args.seed ?? 42);
 const BATCH = Number(args.batch ?? 500);
+
+// API key for the protected ingestion endpoints: --key flag, IIE_API_KEY env,
+// or the local .dev.vars file.
+function loadApiKey() {
+	if (args.key) return args.key;
+	if (process.env.IIE_API_KEY) return process.env.IIE_API_KEY;
+	try {
+		const vars = readFileSync(new URL("../.dev.vars", import.meta.url), "utf8");
+		return Object.fromEntries(
+			vars
+				.split("\n")
+				.filter((line) => line.includes("="))
+				.map((line) => line.split("=", 2)),
+		).API_KEY;
+	} catch {
+		return undefined;
+	}
+}
+const API_KEY = loadApiKey();
+const headers = { "Content-Type": "application/json", ...(API_KEY ? { "x-api-key": API_KEY } : {}) };
 
 // Deterministic PRNG (mulberry32) so datasets are reproducible.
 function mulberry32(a) {
@@ -237,7 +259,7 @@ events.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 {
 	const res = await fetch(`${BASE}/api/org/import`, {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers,
 		body: JSON.stringify({ departments, employees: orgEmployees }),
 	});
 	if (!res.ok) {
@@ -252,7 +274,7 @@ events.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 for (const doc of POLICIES) {
 	const res = await fetch(`${BASE}/api/chatbot/ingest`, {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers,
 		body: JSON.stringify(doc),
 	});
 	if (!res.ok) {
@@ -269,7 +291,7 @@ for (let i = 0; i < events.length; i += BATCH) {
 	const chunk = events.slice(i, i + BATCH);
 	const res = await fetch(`${BASE}/api/events/batch`, {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers,
 		body: JSON.stringify(chunk),
 	});
 	if (!res.ok) {

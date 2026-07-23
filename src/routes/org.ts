@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import { apiKeyAuth } from "../lib/auth";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -30,7 +31,7 @@ const importSchema = z.object({
 const UPSERT_CHUNK = 50;
 
 // Bulk upsert of the org directory (HR system export, or the seed script).
-app.post("/import", async (c) => {
+app.post("/import", apiKeyAuth, async (c) => {
 	const body = await c.req.json().catch(() => null);
 	const parsed = importSchema.safeParse(body);
 	if (!parsed.success) {

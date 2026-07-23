@@ -29,6 +29,8 @@ npm run build:web          # build the dashboard into web/dist (required once)
 npm run dev                # http://localhost:8787 — API + dashboard together
 npm run seed -- --employees 10 --months 1   # smoke-test dataset
 npm run seed               # full dataset: 50 employees, 6 months
+npm test                   # vitest suite (runs inside the Workers runtime)
+npm run validate           # PRD §13 metrics report (needs dev server + seed)
 npm run check              # typecheck
 ```
 
@@ -51,6 +53,34 @@ demand with `POST /api/intelligence/run`; test either cron path via
 Note: Workers AI and Vectorize have no local simulation — they always hit the
 real services (`remote: true` in `wrangler.jsonc`), even under `wrangler dev`.
 AI usage is billed against the free tier (10k neurons/day).
+
+## Auth
+
+Machine-to-machine endpoints require the `API_KEY` secret sent as
+`x-api-key` (timing-safe comparison in `src/lib/auth.ts`):
+
+- `POST /api/events`, `POST /api/events/batch`
+- `POST /api/org/import`, `POST /api/chatbot/ingest`, `POST /api/intelligence/run`
+
+Everything else (reads, attendance/leave/chat user endpoints, the SPA) is open
+in this phase — per-user identity arrives with Cloudflare Access / SSO.
+Local: `.dev.vars` holds `API_KEY` (gitignored; `seed.mjs`/`validate.mjs` read
+it automatically). Production: `wrangler secret put API_KEY`.
+
+## Testing & validation
+
+- `npm test` — vitest + `@cloudflare/vitest-pool-workers`: unit tests for the
+  DFG builder and conformance checker, integration tests for ingestion, the
+  leave state machine, and the mining pipeline (26 tests).
+- `npm run validate` — measures the PRD §13 success metrics against the seeded
+  ground truth (the seed plants a known bottleneck and ~10% manager-bypass
+  violations). Current results, all passing:
+  - Event capture latency: p50 ~10ms (target < 500ms)
+  - Workflow variants discovered: 4 (target ≥ 3)
+  - Bottleneck detection: hr_verification flagged as slowest step
+  - Conformance detection: 100% of known violations, 0 false positives (target > 80%)
+  - Dashboard load: < 100ms locally (target < 2s)
+  - Chatbot policy resolution: 5/5 (target > 60%)
 
 ## Endpoints
 
@@ -102,17 +132,18 @@ Models are configurable via `vars` in `wrangler.jsonc`.
 
 The D1 database `iie-event-log` is already provisioned (ID in `wrangler.jsonc`)
 and its schema is migrated. Deploying publishes the API at a public
-`*.workers.dev` URL — note there is no auth on the endpoints yet (Phase 4 adds
-Cloudflare Access / JWT).
+`*.workers.dev` URL. Machine endpoints are API-key protected; user-facing
+endpoints are open until Cloudflare Access lands.
 
 ```sh
+wrangler secret put API_KEY   # set the production key first
 npm run deploy
-npm run seed -- --base https://iie.<your-subdomain>.workers.dev
+npm run seed -- --base https://iie.<your-subdomain>.workers.dev --key <key>
 ```
 
 ## Next phases
 
-- Auth (Cloudflare Access / JWT) — chat widget and APIs currently trust a typed employee ID
+- Cloudflare Access / SSO for per-user identity (API key covers machine endpoints now)
 - Queue fanout from ingestion (requires Workers Paid plan)
 - SSE live feed (`/api/events/stream`) to replace dashboard polling
 - AI narrative layer over the rule-based recommendations; prescribed-model + thresholds into KV config

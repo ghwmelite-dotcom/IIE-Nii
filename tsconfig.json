@@ -9,7 +9,13 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node", "@cloudflare/vitest-pool-workers"]
   },
-  "include": ["worker-configuration.d.ts", "src"]
+  "include": [
+    "worker-configuration.d.ts",
+    "src",
+    "test",
+    "node_modules/@cloudflare/vitest-pool-workers/types/cloudflare-test.d.ts"
+  ]
 }

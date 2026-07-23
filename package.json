@@ -12,6 +12,8 @@
     "db:migrate:local": "wrangler d1 migrations apply iie-event-log --local",
     "db:migrate:remote": "wrangler d1 migrations apply iie-event-log --remote",
     "seed": "node scripts/seed.mjs",
+    "validate": "node scripts/validate.mjs",
+    "test": "vitest run",
     "build:web": "npm --prefix web run build",
     "check:web": "npm --prefix web run typecheck"
   },
@@ -20,9 +22,11 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.18.7",
     "@cloudflare/workers-types": "^5.20260723.1",
     "@types/node": "^26.1.1",
     "typescript": "^7.0.2",
+    "vitest": "^4.1.10",
     "wrangler": "^4.113.0"
   }
 }
