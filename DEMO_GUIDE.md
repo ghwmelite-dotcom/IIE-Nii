@@ -32,7 +32,7 @@ curl http://localhost:8787/api/stats/overview
 
 The overview should show roughly: **150 employees, ~33,300 events, ~4 flagged bottlenecks**. If it shows 0 events, the database is empty — run `npm run seed` (takes ~3 minutes) before the demo.
 
-Open **http://localhost:8787** in your browser and click through all four tabs once to warm everything up. Keep this browser window ready.
+Open **http://localhost:8787** in your browser and click through all four tabs once to warm everything up. Keep this browser window ready. (Tabs are hash-routed — refreshing or sharing `http://localhost:8787#intelligence` lands directly on that tab.)
 
 **If you ever need fresh data:** `npm run seed -- --reset` wipes every table and re-seeds in one step (plain `npm run seed` is additive and duplicates events).
 
@@ -135,13 +135,13 @@ Walk through top to bottom:
 
 ## 7. Demo script — Act 4: the AI assistant (4–5 min)
 
-Click **"Ask OHCS assistant"** (bottom-right, floats on every page). The employee dropdown defaults to the first officer — *"the assistant knows who it's talking to; per-user sign-in arrives with the SSO phase."*
+Click **"Ask OHCS assistant"** (the gradient pill, bottom-right, on every page). The panel shows who's speaking via the **"Speaking as"** dropdown — *"the assistant knows who it's talking to; per-user sign-in arrives with the SSO phase."* The empty state offers **clickable suggestion chips** — tapping one asks it instantly (a handy shortcut mid-demo).
 
 **Narrative:** *"The assistant is retrieval-augmented: it embeds the actual OHCS policy documents into a vector database and answers strictly from retrieved excerpts — it can't invent policy."*
 
 Ask these in order (expected answers in brackets — the policy corpus guarantees them):
 
-1. **"How many days of annual leave am I entitled to?"** → 30 working days. *Point at the "Sources:" citation under the reply — proof it's RAG, not memorised.*
+1. **"How many days of annual leave am I entitled to?"** → 30 working days. *Point at the indigo source chips under the reply — proof it's RAG over the real policy documents, not memorised.*
 2. **"What is the grace period for morning clock-in?"** → 30 minutes (late after 8:30 a.m.).
 3. **"Who approves study leave applications?"** → the Director, RTDD — after review by the RTDD Schedule Officer. *"That's the Study Leave Policy we just saw in the process map — the chatbot and the miner agree because both read the same reality."*
 4. **"Do I need a medical certificate for two days of sick leave?"** → No — certificates only beyond 3 consecutive days.
