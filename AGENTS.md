@@ -16,8 +16,8 @@ npm run build:web           # rebuild dashboard into web/dist (required after we
 npm run types               # regenerate worker-configuration.d.ts after binding changes
 ```
 
-PDF docs: `.venv-pdf/Scripts/python scripts/build_demo_pdf.py <input.md> <out.html>`,
-then headless Edge `--print-to-pdf`. (`.venv-pdf` + generated HTML are gitignored.)
+PDF docs: `.venv-pdf/Scripts/python scripts/build_pdf.py <input.md> <out.html>`
+(local tool, not committed), then headless Edge `--print-to-pdf`.
 
 ## Domain model (hard-won, don't regress)
 

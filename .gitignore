@@ -4,9 +4,6 @@ node_modules/
 dist/
 *.tsbuildinfo
 .venv-pdf/
-demo-guide.html
 technical-report.html
-DEMO_GUIDE.md
-IIE_Demo_Guide.pdf
 docs/superpowers/
 .demo/
