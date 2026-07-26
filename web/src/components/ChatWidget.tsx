@@ -44,6 +44,7 @@ export default function ChatWidget() {
 	if (!open) {
 		return (
 			<button
+				data-presenter="chat-pill"
 				onClick={() => setOpen(true)}
 				className="group fixed bottom-5 right-5 z-50 flex items-center gap-2.5 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 py-3 pl-4 pr-5 text-sm font-medium text-white shadow-xl shadow-indigo-600/30 ring-1 ring-white/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-indigo-600/40"
 			>
@@ -142,7 +143,7 @@ export default function ChatWidget() {
 			</div>
 
 			{/* Composer */}
-			<div className="border-t border-slate-200/80 bg-white p-2.5">
+			<div data-presenter="chat-input" className="border-t border-slate-200/80 bg-white p-2.5">
 				<div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 py-1 pl-4 pr-1 transition-colors focus-within:border-indigo-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-100">
 					<input
 						value={input}

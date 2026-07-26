@@ -33,10 +33,12 @@ export default function Operations() {
 			<LoadError label="event feed" error={feed.error && !feed.events ? feed.error : null} />
 			<LoadError label="attendance" error={attendance.error && !attendance.data ? attendance.error : null} />
 			<LoadError label="leave pipeline" error={pipeline.error && !pipeline.data ? pipeline.error : null} />
-			<SystemMap overview={o} />
+			<div data-presenter="system-map">
+				<SystemMap overview={o} />
+			</div>
 
 			{/* Stat cards */}
-			<div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+			<div data-presenter="stat-cards" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
 				{stats.map((s) => (
 					<div key={s.label} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
 						<div className="text-xs text-slate-500">{s.label}</div>
@@ -47,7 +49,7 @@ export default function Operations() {
 
 			<div className="grid gap-6 lg:grid-cols-2">
 				{/* Live event feed */}
-				<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+				<section data-presenter="live-feed" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 					<h2 className="mb-3 text-sm font-semibold text-slate-700">Live event feed</h2>
 					<ul className="max-h-96 space-y-1 overflow-y-auto text-sm">
 						{(feed.events ?? []).map((e) => (
@@ -73,7 +75,7 @@ export default function Operations() {
 
 				<div className="space-y-6">
 					{/* Attendance heatmap */}
-					<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+					<section data-presenter="heatmap" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 						<h2 className="mb-3 text-sm font-semibold text-slate-700">Attendance, last 30 days</h2>
 						<div className="grid grid-cols-10 gap-1">
 							{(attendance.data?.days ?? []).map((d) => {
@@ -101,7 +103,7 @@ export default function Operations() {
 					</section>
 
 					{/* Leave pipeline */}
-					<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+					<section data-presenter="leave-pipeline" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 						<h2 className="mb-3 text-sm font-semibold text-slate-700">Leave pipeline</h2>
 						<div className="flex flex-wrap gap-2">
 							{["supervisor_review", "fa_verification", "director_fa_approval", "rtdd_review", "director_rtdd_approval", "completed", "rejected", "escalated"].map((stage) => (

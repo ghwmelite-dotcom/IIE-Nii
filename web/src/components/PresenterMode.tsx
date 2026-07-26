@@ -29,6 +29,19 @@ export default function PresenterMode({ open, onClose }: { open: boolean; onClos
 	const go = (delta: number) =>
 		setIndex((i) => Math.min(PRESENTER_SCRIPT.length - 1, Math.max(0, i + delta)));
 
+	const takeMeThere = () => {
+		if (!step.target) return;
+		if (step.tab && window.location.hash !== `#${step.tab}`) window.location.hash = step.tab;
+		window.setTimeout(() => {
+			const el = document.querySelector(`[data-presenter="${step.target}"]`);
+			if (!(el instanceof HTMLElement)) return;
+			el.scrollIntoView({ behavior: "smooth", block: "center" });
+			el.classList.add("presenter-spotlight");
+			window.setTimeout(() => el.classList.remove("presenter-spotlight"), 2900);
+			if (step.autoClick) el.click();
+		}, 350);
+	};
+
 	return (
 		<div className="fixed bottom-4 left-4 z-40 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-indigo-200 bg-white/95 shadow-2xl shadow-indigo-950/25 backdrop-blur">
 			<div className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 px-3 py-2 text-white">
@@ -65,6 +78,14 @@ export default function PresenterMode({ open, onClose }: { open: boolean; onClos
 						<span className="font-semibold text-indigo-600">Do: </span>
 						{step.click}
 					</p>
+					{step.target && (
+						<button
+							onClick={takeMeThere}
+							className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100"
+						>
+							Take me there →
+						</button>
+					)}
 					<blockquote className="rounded-lg border-l-4 border-indigo-400 bg-indigo-50 px-3 py-2 text-xs italic leading-relaxed text-slate-800">
 						“{step.say}”
 					</blockquote>

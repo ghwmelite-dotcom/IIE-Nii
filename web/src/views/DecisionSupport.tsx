@@ -64,7 +64,7 @@ export default function DecisionSupport() {
 					Rule-generated from the latest bottleneck, conformance, and variant analysis
 					{recs.data ? ` (${new Date(recs.data.generated_at).toLocaleString()})` : ""}. The AI narrative layer arrives in a later phase.
 				</p>
-				<div className="no-print flex gap-2">
+				<div data-presenter="export-buttons" className="no-print flex gap-2">
 					<button
 						onClick={downloadCsv}
 						disabled={!recs.data}
@@ -83,7 +83,7 @@ export default function DecisionSupport() {
 
 			{/* Top insight banner */}
 			{top && (
-				<div className="rounded-xl bg-slate-900 p-5 text-white shadow-md">
+				<div data-presenter="insight-banner" className="rounded-xl bg-slate-900 p-5 text-white shadow-md">
 					<div className="mb-1 flex items-center gap-2">
 						<span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${SEVERITY_BADGE[top.severity]}`}>{top.severity}</span>
 						<span className="text-[10px] uppercase tracking-wide text-slate-400">Top insight · {top.kind}</span>
@@ -95,7 +95,7 @@ export default function DecisionSupport() {
 
 			{/* Department comparison */}
 			{depts.length > 0 && (
-				<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+				<section data-presenter="dept-comparison" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 					<h2 className="mb-1 text-sm font-semibold text-slate-700">Department comparison</h2>
 					<p className="mb-4 text-xs text-slate-400">
 						Late arrivals (scale 0–25%) and leave-approval cycle (scale 0–10d). Red marks &gt;1.5× the office average.
@@ -141,7 +141,7 @@ export default function DecisionSupport() {
 			)}
 
 			{/* Remaining recommendations */}
-			<div className="grid gap-4 md:grid-cols-2">
+			<div data-presenter="recommendations" className="grid gap-4 md:grid-cols-2">
 				{rest.map((r, i) => (
 					<div key={i} className={`rounded-xl border border-slate-200 border-l-4 bg-white p-4 shadow-sm ${SEVERITY_STYLES[r.severity]}`}>
 						<div className="mb-2 flex items-center gap-2">

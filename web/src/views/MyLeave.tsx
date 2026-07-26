@@ -141,7 +141,7 @@ export default function MyLeave() {
 			<div className="grid gap-6 lg:grid-cols-2">
 				<div className="space-y-6">
 					{/* Submit */}
-					<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+					<section data-presenter="leave-submit" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 						<h2 className="mb-3 text-sm font-semibold text-slate-700">Submit a leave request</h2>
 						<div className="flex flex-wrap items-end gap-3">
 							<label className="text-xs text-slate-500">
@@ -186,7 +186,7 @@ export default function MyLeave() {
 					</section>
 
 					{/* My requests */}
-					<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+					<section data-presenter="my-requests" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 						<h2 className="mb-3 text-sm font-semibold text-slate-700">My requests</h2>
 						{myRequests.length === 0 && <p className="text-sm text-slate-400">No requests yet for {employeeId}.</p>}
 						<ul className="space-y-2">
@@ -229,7 +229,7 @@ export default function MyLeave() {
 				</div>
 
 				{/* Approver inbox */}
-				<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+				<section data-presenter="approver-inbox" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 					<h2 className="mb-1 text-sm font-semibold text-slate-700">Approver inbox</h2>
 					<p className="mb-3 text-xs text-slate-400">
 						Pending requests by stage. Pick the officer you act as — the list only offers roles allowed at that stage.

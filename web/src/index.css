@@ -20,3 +20,16 @@
 		break-inside: avoid;
 	}
 }
+
+/* Presenter Mode "Take me there" spotlight: flashes a ring on the target element. */
+.presenter-spotlight {
+	outline: 3px solid rgb(99 102 241);
+	outline-offset: 2px;
+	animation: presenter-spotlight-pulse 0.9s ease-in-out 3;
+}
+
+@keyframes presenter-spotlight-pulse {
+	50% {
+		outline-color: rgb(99 102 241 / 0.2);
+	}
+}
