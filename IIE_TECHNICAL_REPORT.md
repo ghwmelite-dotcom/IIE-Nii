@@ -209,4 +209,4 @@ Future work, in priority order: per-user identity via Cloudflare Access; queue-b
 
 ---
 
-*Companion documents: `DEMO_GUIDE.md` / `IIE_Demo_Guide.pdf` (supervisor demonstration script), `README.md` (build/run), `IIE_PRD.pdf` (requirements). All implementation facts cited against the repository as of July 2026.*
+*Companion documents: `README.md` (build/run), `IIE_PRD.pdf` (requirements). All implementation facts cited against the repository as of July 2026.*

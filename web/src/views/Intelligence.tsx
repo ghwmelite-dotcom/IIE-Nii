@@ -61,7 +61,7 @@ export default function Intelligence() {
 			</div>
 
 			{/* Process map with duration overlay */}
-			<section data-presenter="process-map" className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+			<section className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 				<h2 className="mb-1 text-sm font-semibold text-slate-700">Discovered process map</h2>
 				<p className="mb-2 text-xs text-slate-400">Pills show cases · median transition time. Red pills = over SLA threshold.</p>
 				{m ? <ProcessMap nodes={m.graph.nodes} edges={m.graph.edges} edgeStats={edgeStats} /> : <p className="text-slate-400">Loading…</p>}
@@ -70,7 +70,7 @@ export default function Intelligence() {
 
 			<div className="grid gap-6 lg:grid-cols-2">
 				{/* Bottlenecks */}
-				<section data-presenter="bottlenecks" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+				<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 					<h2 className="mb-1 text-sm font-semibold text-slate-700">Bottlenecks</h2>
 					<p className="mb-3 text-xs text-slate-400">Median vs P95 transition time per step — bars scale to the slowest.</p>
 					{(() => {
@@ -105,7 +105,7 @@ export default function Intelligence() {
 
 				<div className="space-y-6">
 					{/* Variant share */}
-					<section data-presenter="variants" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+					<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 						<h2 className="mb-3 text-sm font-semibold text-slate-700">Workflow variants</h2>
 						{variantTotal > 0 && (
 							<div className="mb-3 flex h-4 w-full overflow-hidden rounded-full">
@@ -132,7 +132,7 @@ export default function Intelligence() {
 					</section>
 
 					{/* Conformance */}
-					<section data-presenter="conformance" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+					<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 						<h2 className="mb-3 text-sm font-semibold text-slate-700">Conformance</h2>
 						{conformance.data ? (
 							<>

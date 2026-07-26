@@ -55,14 +55,6 @@ then headless Edge `--print-to-pdf`. (`.venv-pdf` + generated HTML are gitignore
   drill-down modal, EmployeePicker, LoadError banners, My Leave tab (submit/track +
   approver inbox), CSV/print export on Decision Support, premium header + chat widget
   (indigo/violet gradient brand, Ghana tricolor hairline).
-  Presenter Mode (header "Presenter" button): floating step-by-step demo
-  walkthrough panel, script in web/src/presenter/script.ts — keep it in sync
-  with DEMO_GUIDE.md. Step `target` fields reference `data-presenter`
-  attributes on panels in the views (system-map, live-feed, process-map,
-  bottlenecks, conformance, insight-banner, dept-comparison, leave-submit,
-  approver-inbox, chat-pill, …); "Take me there" scrolls to + spotlights them
-  (`.presenter-spotlight` in web/src/index.css). Keep targets and attributes
-  in sync when restructuring panels.
 - Seed plants ground truth: slow `supervisor_review → fa_verification` (~3.3d median),
   10% supervisor-bypass violations (22/256 cases). validate.mjs measures against this.
 - DB wipe order (FK-safe): events, attendance_records, leave_requests,
@@ -71,9 +63,9 @@ then headless Edge `--print-to-pdf`. (`.venv-pdf` + generated HTML are gitignore
 
 ## Docs
 
-`README.md` (build/run), `DEMO_GUIDE.md` + `IIE_Demo_Guide.pdf` (supervisor demo
-script), `IIE_TECHNICAL_REPORT.md` + `IIE_Technical_Report.pdf` (thesis companion,
-references verified). Regenerate PDFs after content/data changes.
+`README.md` (build/run), `IIE_TECHNICAL_REPORT.md` + `IIE_Technical_Report.pdf`
+(thesis companion, references verified). Regenerate PDFs after content/data
+changes.
 
 ## Deferred (roadmap)
 
