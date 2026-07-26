@@ -57,7 +57,12 @@ then headless Edge `--print-to-pdf`. (`.venv-pdf` + generated HTML are gitignore
   (indigo/violet gradient brand, Ghana tricolor hairline).
   Presenter Mode (header "Presenter" button): floating step-by-step demo
   walkthrough panel, script in web/src/presenter/script.ts — keep it in sync
-  with DEMO_GUIDE.md.
+  with DEMO_GUIDE.md. Step `target` fields reference `data-presenter`
+  attributes on panels in the views (system-map, live-feed, process-map,
+  bottlenecks, conformance, insight-banner, dept-comparison, leave-submit,
+  approver-inbox, chat-pill, …); "Take me there" scrolls to + spotlights them
+  (`.presenter-spotlight` in web/src/index.css). Keep targets and attributes
+  in sync when restructuring panels.
 - Seed plants ground truth: slow `supervisor_review → fa_verification` (~3.3d median),
   10% supervisor-bypass violations (22/256 cases). validate.mjs measures against this.
 - DB wipe order (FK-safe): events, attendance_records, leave_requests,

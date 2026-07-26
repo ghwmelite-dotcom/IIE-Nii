@@ -38,8 +38,12 @@ Open **http://localhost:8787** in your browser and click through all four tabs o
 "Presenter" in the header (top right) and a panel walks you through every step
 below: what to click, the exact line to say, and the number to expect. It
 navigates the tabs for you as you advance, and remembers your place if the page
-refreshes. This guide remains the full reference; Presenter Mode is the
-in-the-moment version of it.
+refreshes. Steps that point at something on screen also have a **"Take me
+there →"** button: it switches to the right tab, scrolls the exact panel into
+view, and flashes a highlight ring around it (on the "Open the assistant" step
+it opens the chat widget for you). It never performs transactions — submitting
+leave, approving, and sending chat messages stay live clicks. This guide
+remains the full reference; Presenter Mode is the in-the-moment version of it.
 
 **If you ever need fresh data:** `npm run seed -- --reset` wipes every table and re-seeds in one step (plain `npm run seed` is additive and duplicates events).
 
