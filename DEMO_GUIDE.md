@@ -16,6 +16,35 @@ Key phrase if asked what makes it different from a normal dashboard: **"A normal
 
 ## 2. Pre-demo checklist (do this 30 minutes before)
 
+### Option A — present from the live site (recommended; no localhost, no terminal)
+
+The platform is deployed at **https://iie.ghwmelite.workers.dev**, already
+seeded with the full demo dataset. To prepare:
+
+1. Open **https://iie.ghwmelite.workers.dev** in your browser.
+2. Click through all four tabs once to warm everything up, then click
+   **Presenter** in the header and step forward/back a couple of steps to get
+   comfortable. Keep this window ready.
+
+That's it — no dev server, no seeding, no terminal. The whole presentation
+(pitch + Acts 1–5) runs in the browser against the live URL. Only the
+*optional* Act 6 validation harness needs a terminal (see §9).
+
+Notes for the live site:
+
+- It works from any machine with internet — you can present from the
+  supervisor's own computer if needed.
+- Rehearsing on the live site adds a few real leave cases and chatbot events
+  to the log. That's harmless (the planted 22 violations and 3.3-day
+  bottleneck don't move) — it actually makes the "live feed" story better.
+- The chatbot uses the Cloudflare free-tier AI quota (10k neurons/day) — don't
+  hammer it in rehearsal right before presenting.
+- If the data ever needs a full reset, that's a terminal job back on the
+  project machine (`scripts/seed.mjs --reset --base https://iie.ghwmelite.workers.dev`)
+  with the production API key — ask whoever deployed it.
+
+### Option B — present from localhost (the original way)
+
 You need: the project folder open, internet access (the AI features call live Cloudflare services even in local dev), and one terminal.
 
 ```sh
@@ -183,7 +212,20 @@ Safety point worth volunteering: *"Leave dates are only ever taken from the user
 
 ## 9. Demo script — Act 6 (optional, for technical supervisors): proof it works (3 min)
 
-In a terminal, with the dev server running:
+This act is the only one that needs a terminal, and you can also just talk
+through the results table below instead — the harness output is reproducible
+on request.
+
+Against the **live site** (from the project folder, no dev server needed):
+
+```sh
+# Windows (Git Bash): the production API key is required for the latency test
+IIE_API_KEY=<production-key> node scripts/validate.mjs --base https://iie.ghwmelite.workers.dev
+# or skip the AI metric to save free-tier quota:
+IIE_API_KEY=<production-key> node scripts/validate.mjs --base https://iie.ghwmelite.workers.dev --no-ai
+```
+
+Or against **localhost**, with the dev server running (`npm run dev`):
 
 ```sh
 npm run validate
@@ -202,7 +244,7 @@ This measures the project's six PRD success metrics live, against the planted gr
 
 If they want more: `npm test` runs the 32-test suite (ingestion, the leave state machine — including the study-leave RTDD routing and F&A scoping, DFG miner, conformance checker, SSE stream, full mining pipeline) inside the real Workers runtime.
 
-You can also show raw API output, e.g. `http://localhost:8787/api/intelligence/recommendations` in the browser — *"everything the dashboard shows is a JSON API; any other system can consume it."*
+You can also show raw API output in the browser — e.g. `https://iie.ghwmelite.workers.dev/api/intelligence/recommendations` (or `http://localhost:8787/...` when presenting locally) — *"everything the dashboard shows is a JSON API; any other system can consume it."*
 
 ---
 
@@ -241,6 +283,15 @@ Be honest — it lands well: SSO identity, queue fanout for ingestion bursts, AI
 ---
 
 ## 11. Troubleshooting (if something goes wrong mid-demo)
+
+Presenting from the **live site**, the likely symptoms are just these two:
+
+| Symptom | Fix |
+|---|---|
+| Dashboard blank after clicking a tab | Hard refresh (Ctrl+F5) — you may have a stale cached bundle. |
+| Chatbot says "Something went wrong" | Wait a few seconds and retry — free-tier AI rate limits (10k neurons/day). If it's out for the day, demo the remaining tabs; everything else is unaffected. |
+
+The rows below apply when presenting from **localhost** (Option B):
 
 | Symptom | Fix |
 |---|---|
