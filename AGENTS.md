@@ -55,6 +55,9 @@ then headless Edge `--print-to-pdf`. (`.venv-pdf` + generated HTML are gitignore
   drill-down modal, EmployeePicker, LoadError banners, My Leave tab (submit/track +
   approver inbox), CSV/print export on Decision Support, premium header + chat widget
   (indigo/violet gradient brand, Ghana tricolor hairline).
+  Presenter Mode (header "Presenter" button): floating step-by-step demo
+  walkthrough panel, script in web/src/presenter/script.ts — keep it in sync
+  with DEMO_GUIDE.md.
 - Seed plants ground truth: slow `supervisor_review → fa_verification` (~3.3d median),
   10% supervisor-bypass violations (22/256 cases). validate.mjs measures against this.
 - DB wipe order (FK-safe): events, attendance_records, leave_requests,
