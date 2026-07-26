@@ -47,7 +47,7 @@
   // placeholder id; for remote, `wrangler kv namespace create CONFIG` and put
   // the real id here.
   "kv_namespaces": [
-    { "binding": "CONFIG", "id": "local-config-placeholder" }
+    { "binding": "CONFIG", "id": "214e349f1c33498bad6228092ba15338" }
   ],
 
   // Dashboard SPA (web/, built with Vite). The Worker delegates non-/api paths

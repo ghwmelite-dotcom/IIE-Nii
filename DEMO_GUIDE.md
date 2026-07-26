@@ -34,6 +34,13 @@ The overview should show roughly: **150 employees, ~33,300 events, ~4 flagged bo
 
 Open **http://localhost:8787** in your browser and click through all four tabs once to warm everything up. Keep this browser window ready. (Tabs are hash-routed — refreshing or sharing `http://localhost:8787#intelligence` lands directly on that tab.)
 
+**On-screen option:** the dashboard has a built-in **Presenter Mode** — click
+"Presenter" in the header (top right) and a panel walks you through every step
+below: what to click, the exact line to say, and the number to expect. It
+navigates the tabs for you as you advance, and remembers your place if the page
+refreshes. This guide remains the full reference; Presenter Mode is the
+in-the-moment version of it.
+
 **If you ever need fresh data:** `npm run seed -- --reset` wipes every table and re-seeds in one step (plain `npm run seed` is additive and duplicates events).
 
 ---
