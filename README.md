@@ -1,9 +1,69 @@
 # IIE — Intelligent Integration Engine
 
-Event-driven process intelligence platform for OHCS, built on Cloudflare
-(Workers + D1 + Workers AI + Vectorize + R2). See `IIE_PRD.pdf`.
+> Process intelligence for the Office of the Head of Civil Service (OHCS), Ghana.
+> One unified event log from every subsystem — RFID attendance, the leave
+> workflow, and an HR chatbot — mined automatically into the real process map,
+> bottlenecks, conformance findings, and management-ready recommendations.
 
-One Worker, modular routes — split into separate Workers only if a module outgrows it.
+[![Live demo](https://img.shields.io/badge/demo-live%20on%20workers.dev-4f46e5)](https://iie.ghwmelite.workers.dev)
+[![Stack](https://img.shields.io/badge/stack-Cloudflare%20Workers%20%2B%20D1%20%2B%20Workers%20AI%20%2B%20Vectorize-f6821f)](https://workers.cloudflare.com/)
+[![Tests](https://img.shields.io/badge/tests-32%20passing-059669)](#testing--validation)
+
+**[Open the live demo →](https://iie.ghwmelite.workers.dev)** — seeded with 6
+months of simulated OHCS operations (150 staff across the 9 real OHCS units,
+~33,300 events). Once there, click **Presenter** in the header: a built-in
+walkthrough guides you through the whole demo — what to click, the exact line
+to say, and a *Take me there* button that scrolls to and spotlights each panel.
+
+![Operations dashboard — live event feed, attendance heatmap, leave pipeline](docs/images/dashboard-operations.png)
+
+## What is this?
+
+Most dashboards show you numbers you asked for. IIE discovers how work
+*actually* flows from the event log and tells you where reality deviates from
+policy — without anyone configuring it:
+
+- The process map below was **mined, not drawn** — it discovered both real
+  OHCS leave chains (standard leave via F&A, study leave via RTDD) from raw
+  events alone.
+- It flags the slowest hand-off (supervisor → F&A verification, median 3.3
+  days) and catches every case that bypassed supervisor review (22/22, zero
+  false positives) — validated against planted ground truth.
+
+![Process Intelligence — discovered process map, bottlenecks, conformance](docs/images/dashboard-intelligence.png)
+
+## Highlights
+
+- **Unified canonical event log** — every subsystem emits one event schema; new systems just start emitting.
+- **Process discovery** — directly-follows graph mining with variants, per source system.
+- **Bottleneck detection** — median/P95 transition times vs per-source SLA thresholds (KV-tunable, no redeploy).
+- **Conformance checking** — every leave case audited against the prescribed chain for its type.
+- **Decision support** — severity-ranked, plain-English recommendations + department comparison, exportable to CSV/PDF.
+- **Self-service leave** — submit/track/approve through the real OHCS chains; the state machine enforces role *and* directorate.
+- **AI assistant** — RAG over the actual policy documents (Vectorize + Llama 3.3 70B), personal-data queries answered deterministically with no LLM, and it executes real leave transactions.
+- **Presenter Mode** — on-screen guided demo walkthrough with "Take me there" spotlighting.
+- **Live everything** — server-sent event feed, polling stat cards, 6-hourly cron mining.
+
+![Decision Support — recommendations and department comparison](docs/images/dashboard-decision.png)
+
+## Architecture
+
+One Cloudflare Worker (Hono) + D1 + Workers AI + Vectorize + R2 + KV, with the
+React SPA served as static assets. Requirements: [`IIE_PRD.pdf`](IIE_PRD.pdf).
+One Worker, modular routes — split into separate Workers only if a module
+outgrows it.
+
+![Cloudflare architecture](iie_cloudflare_architecture.svg)
+
+## Documentation
+
+| Document | What it is |
+|---|---|
+| [`IIE_PRD.pdf`](IIE_PRD.pdf) | Product requirements (source of truth) |
+| [`DEMO_GUIDE.md`](DEMO_GUIDE.md) · [`IIE_Demo_Guide.pdf`](IIE_Demo_Guide.pdf) | Supervisor demo script — pitch, acts, Q&A, troubleshooting |
+| [`IIE_TECHNICAL_REPORT.md`](IIE_TECHNICAL_REPORT.md) · [`IIE_Technical_Report.pdf`](IIE_Technical_Report.pdf) | Thesis companion — design decisions, references |
+| [`iie_cloudflare_architecture.svg`](iie_cloudflare_architecture.svg) | Architecture diagram |
+| [`AGENTS.md`](AGENTS.md) | Project memory: domain model, invariants, commands |
 
 ## Layout
 
@@ -89,14 +149,14 @@ it automatically). Production: `wrangler secret put API_KEY`.
 
 - `npm test` — vitest + `@cloudflare/vitest-pool-workers`: unit tests for the
   DFG builder and conformance checker, integration tests for ingestion, the
-  leave state machine, and the mining pipeline (26 tests).
+  leave state machine, and the mining pipeline (32 tests).
 - `npm run validate` — measures the PRD §13 success metrics against the seeded
-  ground truth (the seed plants a known bottleneck and ~10% manager-bypass
-  violations). Current results, all passing:
-  - Event capture latency: p50 ~10ms (target < 500ms)
-  - Workflow variants discovered: 4 (target ≥ 3)
-  - Bottleneck detection: hr_verification flagged as slowest step
-  - Conformance detection: 100% of known violations, 0 false positives (target > 80%)
+  ground truth (the seed plants a known bottleneck and ~10% supervisor-bypass
+  violations). Current results, all passing (6/6):
+  - Event capture latency: p50 ~10ms local, ~160ms on the live edge deployment (target < 500ms)
+  - Workflow variants discovered: 8 (target ≥ 3)
+  - Bottleneck detection: `supervisor_review → fa_verification` flagged (median 3.3d)
+  - Conformance detection: 100% of known violations (22/22), 0 false positives (target > 80%)
   - Dashboard load: < 100ms locally (target < 2s)
   - Chatbot policy resolution: 5/5 (target > 60%)
 
@@ -139,7 +199,11 @@ variants, conformance with case drill-down), **Decision Support**
 (recommendation cards, department comparison, CSV/print export), and **My
 Leave** (submit, track, and act on leave requests through the F&A / RTDD
 chains). Tabs are hash-routed (`#intelligence`, `#leave`, …). The chat widget
-floats bottom-right on every view. Non-`/api` paths fall back to the SPA
+floats bottom-right on every view. **Presenter Mode** (header button) turns
+`DEMO_GUIDE.md` into an on-screen walkthrough: per-step click instructions,
+say-lines, expected numbers, and a *Take me there* button that navigates to
+and spotlights each panel (`data-presenter` attributes, script in
+`web/src/presenter/script.ts`). Non-`/api` paths fall back to the SPA
 (`ASSETS` binding + `not_found_handling: single-page-application`).
 
 ## Chatbot design
@@ -154,10 +218,13 @@ Models are configurable via `vars` in `wrangler.jsonc`.
 
 ## Deploy
 
-The D1 database `iie-event-log` is already provisioned (ID in `wrangler.jsonc`)
-and its schema is migrated. Deploying publishes the API at a public
-`*.workers.dev` URL. Machine endpoints are API-key protected; user-facing
-endpoints are open until Cloudflare Access lands.
+The platform is deployed and seeded at
+**[iie.ghwmelite.workers.dev](https://iie.ghwmelite.workers.dev)** (D1, KV,
+Vectorize, and R2 provisioned in the same account). Machine endpoints are
+API-key protected; user-facing endpoints are open until Cloudflare Access
+lands.
+
+To redeploy or deploy to your own account:
 
 ```sh
 wrangler secret put API_KEY   # set the production key first
