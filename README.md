@@ -11,9 +11,8 @@
 
 **[Open the live demo →](https://iie.ghwmelite.workers.dev)** — seeded with 6
 months of simulated OHCS operations (150 staff across the 9 real OHCS units,
-~33,300 events). Once there, click **Presenter** in the header: a built-in
-walkthrough guides you through the whole demo — what to click, the exact line
-to say, and a *Take me there* button that scrolls to and spotlights each panel.
+~33,300 events). Explore the four views — Operations, Process Intelligence,
+Decision Support, and My Leave — plus the floating AI assistant.
 
 ![Operations dashboard — live event feed, attendance heatmap, leave pipeline](docs/images/dashboard-operations.png)
 
@@ -41,7 +40,6 @@ policy — without anyone configuring it:
 - **Decision support** — severity-ranked, plain-English recommendations + department comparison, exportable to CSV/PDF.
 - **Self-service leave** — submit/track/approve through the real OHCS chains; the state machine enforces role *and* directorate.
 - **AI assistant** — RAG over the actual policy documents (Vectorize + Llama 3.3 70B), personal-data queries answered deterministically with no LLM, and it executes real leave transactions.
-- **Presenter Mode** — on-screen guided demo walkthrough with "Take me there" spotlighting.
 - **Live everything** — server-sent event feed, polling stat cards, 6-hourly cron mining.
 
 ![Decision Support — recommendations and department comparison](docs/images/dashboard-decision.png)
@@ -60,7 +58,6 @@ outgrows it.
 | Document | What it is |
 |---|---|
 | [`IIE_PRD.pdf`](IIE_PRD.pdf) | Product requirements (source of truth) |
-| [`DEMO_GUIDE.md`](DEMO_GUIDE.md) · [`IIE_Demo_Guide.pdf`](IIE_Demo_Guide.pdf) | Supervisor demo script — pitch, acts, Q&A, troubleshooting |
 | [`IIE_TECHNICAL_REPORT.md`](IIE_TECHNICAL_REPORT.md) · [`IIE_Technical_Report.pdf`](IIE_Technical_Report.pdf) | Thesis companion — design decisions, references |
 | [`iie_cloudflare_architecture.svg`](iie_cloudflare_architecture.svg) | Architecture diagram |
 | [`AGENTS.md`](AGENTS.md) | Project memory: domain model, invariants, commands |
@@ -199,11 +196,7 @@ variants, conformance with case drill-down), **Decision Support**
 (recommendation cards, department comparison, CSV/print export), and **My
 Leave** (submit, track, and act on leave requests through the F&A / RTDD
 chains). Tabs are hash-routed (`#intelligence`, `#leave`, …). The chat widget
-floats bottom-right on every view. **Presenter Mode** (header button) turns
-`DEMO_GUIDE.md` into an on-screen walkthrough: per-step click instructions,
-say-lines, expected numbers, and a *Take me there* button that navigates to
-and spotlights each panel (`data-presenter` attributes, script in
-`web/src/presenter/script.ts`). Non-`/api` paths fall back to the SPA
+floats bottom-right on every view. Non-`/api` paths fall back to the SPA
 (`ASSETS` binding + `not_found_handling: single-page-application`).
 
 ## Chatbot design
