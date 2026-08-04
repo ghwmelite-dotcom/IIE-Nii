@@ -10,7 +10,7 @@ const ICON_PROPS = { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", 
 const TABS = [
 	{
 		id: "operations",
-		label: "Operations",
+		label: "System Overview",
 		// Activity pulse
 		icon: (
 			<svg {...ICON_PROPS}>
