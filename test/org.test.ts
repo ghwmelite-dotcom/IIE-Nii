@@ -1,14 +1,17 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { apiGet, applyMigrations, seedOrg } from "./helpers";
+import { applyMigrations, seedOrg, seedUser, authGet } from "./helpers";
+
+let cookie: string;
 
 describe("org directory API", () => {
 	beforeAll(async () => {
 		await applyMigrations();
 		await seedOrg();
+		cookie = await seedUser("u-org-test", "org-test@test.local", null, ["employee"]);
 	});
 
 	it("lists employees with id, name, department and role", async () => {
-		const res = await apiGet("/api/org/employees");
+		const res = await authGet("/api/org/employees", cookie);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as { employees: { employee_id: string; name: string; department_id: string; role: string }[] };
 		expect(body.employees.length).toBe(9);

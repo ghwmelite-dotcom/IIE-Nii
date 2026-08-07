@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { apiKeyAuth } from "../lib/auth";
+import { apiKeyAuth, requireUser, type AuthEnv } from "../lib/auth";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<AuthEnv>();
 
 const importSchema = z.object({
 	departments: z
@@ -69,7 +69,7 @@ app.post("/import", apiKeyAuth, async (c) => {
 });
 
 // Org directory listing — drives employee pickers in the dashboard.
-app.get("/employees", async (c) => {
+app.get("/employees", requireUser, async (c) => {
 	const { results } = await c.env.DB.prepare(
 		"SELECT employee_id, name, department_id, role FROM employees ORDER BY employee_id",
 	).all();

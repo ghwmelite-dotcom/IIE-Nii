@@ -1,8 +1,10 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { apiGet, apiPost, applyMigrations } from "./helpers";
+import { apiPost, applyMigrations, seedUser, authGet } from "./helpers";
 
 const T0 = Date.parse("2026-03-01T08:00:00Z");
 const H = 3_600_000;
+
+let analystCookie: string;
 
 function leaveCase(caseId: string, activities: string[], gapHours = 24) {
 	return activities.map((activity, i) => ({
@@ -18,6 +20,7 @@ function leaveCase(caseId: string, activities: string[], gapHours = 24) {
 describe("process intelligence end-to-end", () => {
 	beforeAll(async () => {
 		await applyMigrations();
+		analystCookie = await seedUser("u-intel-analyst", "intel-analyst@test.local", null, ["process_analyst"]);
 		const events = [
 			...leaveCase("CASE-FULL", ["leave_submitted", "supervisor_review", "fa_verification", "director_fa_approval", "completed"]),
 			...leaveCase("CASE-BYPASS", ["leave_submitted", "fa_verification", "director_fa_approval", "completed"]),
@@ -46,7 +49,7 @@ describe("process intelligence end-to-end", () => {
 	});
 
 	it("discovers the workflow variants", async () => {
-		const res = await apiGet("/api/intelligence/process-map?source=LEAVE_WORKFLOW");
+		const res = await authGet("/api/intelligence/process-map?source=LEAVE_WORKFLOW", analystCookie);
 		const body = (await res.json()) as { models: { case_count: number; variants: { activities: string[] }[] }[] };
 		const model = body.models[0];
 		expect(model.case_count).toBe(3);
@@ -56,7 +59,7 @@ describe("process intelligence end-to-end", () => {
 	});
 
 	it("computes bottleneck stats for the transitions", async () => {
-		const res = await apiGet("/api/intelligence/bottlenecks?source=LEAVE_WORKFLOW");
+		const res = await authGet("/api/intelligence/bottlenecks?source=LEAVE_WORKFLOW", analystCookie);
 		const body = (await res.json()) as { bottlenecks: { activity_pair: string; median_ms: number }[] };
 		const pairs = body.bottlenecks.map((b) => b.activity_pair);
 		expect(pairs).toContain("leave_submitted -> supervisor_review");
@@ -66,7 +69,7 @@ describe("process intelligence end-to-end", () => {
 	});
 
 	it("flags the bypass case in conformance checking", async () => {
-		const res = await apiGet("/api/intelligence/conformance");
+		const res = await authGet("/api/intelligence/conformance", analystCookie);
 		const body = (await res.json()) as { deviations: { case_id: string; deviation_type: string }[] };
 		const bypass = body.deviations.find((d) => d.case_id === "CASE-BYPASS");
 		expect(bypass).toBeDefined();
@@ -77,7 +80,7 @@ describe("process intelligence end-to-end", () => {
 	});
 
 	it("produces recommendations from the analysis", async () => {
-		const res = await apiGet("/api/intelligence/recommendations");
+		const res = await authGet("/api/intelligence/recommendations", analystCookie);
 		const body = (await res.json()) as { recommendations: unknown[] };
 		expect(Array.isArray(body.recommendations)).toBe(true);
 	});
