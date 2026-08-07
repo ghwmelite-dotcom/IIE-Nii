@@ -4,9 +4,9 @@ import { insertEvents, toStoredEvent } from "../lib/events";
 import { createLeaveRequest } from "../lib/leave-actions";
 import type { EmployeeRecord } from "../lib/leave-actions";
 import { ingestDocument, retrievePolicyChunks } from "../lib/rag";
-import { apiKeyAuth } from "../lib/auth";
+import { apiKeyAuth, requireUser, requireCsrf, currentUser, type AuthEnv } from "../lib/auth";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<AuthEnv>();
 
 // Simplified entitlement for balance answers (PRD leaves balance rules to HR).
 const ANNUAL_LEAVE_ENTITLEMENT_DAYS = 30;
@@ -14,7 +14,6 @@ const ANNUAL_LEAVE_ENTITLEMENT_DAYS = 30;
 const MIN_RETRIEVAL_SCORE = 0.45;
 
 const messageSchema = z.object({
-	employee_id: z.string().min(1),
 	message: z.string().min(1).max(2000),
 });
 
@@ -159,19 +158,19 @@ async function resolveIntent(env: Env, message: string): Promise<IntentResult> {
 }
 
 // Conversational front door (PRD §5.1). Stateless: the client resends context.
-app.post("/message", async (c) => {
+app.post("/message", requireUser, requireCsrf, async (c) => {
 	const body = await c.req.json().catch(() => null);
 	const parsed = messageSchema.safeParse(body);
 	if (!parsed.success) {
 		return c.json({ error: "Invalid message", issues: parsed.error.issues }, 400);
 	}
 
+	const me = currentUser(c);
+	if (!me.user.employee_id) return c.json({ error: "Your account is not linked to an employee record" }, 403);
 	const employee = await c.env.DB.prepare("SELECT * FROM employees WHERE employee_id = ?")
-		.bind(parsed.data.employee_id)
+		.bind(me.user.employee_id)
 		.first<EmployeeRecord>();
-	if (!employee) {
-		return c.json({ error: "Unknown employee" }, 404);
-	}
+	if (!employee) return c.json({ error: "Unknown employee" }, 404);
 
 	const message = parsed.data.message;
 	const intent = await resolveIntent(c.env, message);
