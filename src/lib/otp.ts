@@ -16,8 +16,21 @@ async function sha256Hex(value: string): Promise<string> {
 }
 
 function sixDigits(): string {
-	return String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, "0");
+	// Rejection sampling to avoid modulo bias across the 6-digit space.
+	const max = 1_000_000;
+	const limit = 2 ** 32 - (2 ** 32 % max);
+	let v: number;
+	do {
+		v = crypto.getRandomValues(new Uint32Array(1))[0];
+	} while (v >= limit);
+	return String(v % max).padStart(6, "0");
 }
+
+// NOTE (Milestone A accepted limitation): verifyOtp and checkRateLimit use a
+// read-modify-write on KV, which has no compare-and-swap. Highly-concurrent bursts
+// can exceed the attempt/rate caps by a factor of the concurrency. The 6-digit space
+// + 10-min TTL + single-use deletion bound the practical risk; tighten via a Durable
+// Object counter if KV-race abuse becomes a real threat.
 
 export async function issueOtp(env: Env, email: string): Promise<string> {
 	const code = sixDigits();

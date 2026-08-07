@@ -10,10 +10,15 @@
  * during the go-live task once a verified sender domain exists.
  */
 export async function sendOtpEmail(env: Env, to: string, code: string): Promise<void> {
-	if (env.ENVIRONMENT !== "production" || !env.EMAIL_SENDER) {
+	// Fail-closed allowlist: ONLY these explicitly-named non-prod environments log
+	// the code instead of sending. Any other value — including an unset or
+	// misspelled ENVIRONMENT — is treated as production so a config slip can never
+	// leak a plaintext OTP to observability.
+	if (["local", "development", "staging", "test"].includes(env.ENVIRONMENT)) {
 		console.log(JSON.stringify({ message: "otp email (dev)", to, code }));
 		return;
 	}
+	if (!env.EMAIL_SENDER) throw new Error("EMAIL_SENDER must be configured to send OTP email in production");
 	const body = {
 		personalizations: [{ to: [{ email: to }] }],
 		from: { email: env.EMAIL_SENDER },

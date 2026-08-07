@@ -23,7 +23,10 @@ app.post("/request-code", requireCsrf, async (c) => {
 	const user = await findActiveUserByEmail(c.env, email);
 	if (user) {
 		const code = await issueOtp(c.env, email);
-		if (c.env.ENVIRONMENT !== "production") await c.env.AUTH.put(`otp-plain:${email}`, code, { expirationTtl: 600 });
+		// Test/dev seam only — fail-closed allowlist, never in production.
+		if (["local", "development", "staging", "test"].includes(c.env.ENVIRONMENT)) {
+			await c.env.AUTH.put(`otp-plain:${email}`, code, { expirationTtl: 600 });
+		}
 		await sendOtpEmail(c.env, email, code);
 	}
 	return c.json({ status: "sent" }, 202);

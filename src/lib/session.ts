@@ -1,5 +1,6 @@
 const COOKIE = "iie_session";
 const IDLE_TTL_SECONDS = 8 * 60 * 60; // 8h sliding
+const ABSOLUTE_TTL_SECONDS = 24 * 60 * 60; // hard re-auth ceiling regardless of activity
 
 export interface SessionData {
 	userId: string;
@@ -59,8 +60,14 @@ export async function readSession(env: Env, cookieHeader: string): Promise<(Sess
 	if (!sessionId) return null;
 	const record = await env.AUTH.get(`sess:${sessionId}`);
 	if (!record) return null;
+	const data = JSON.parse(record) as SessionData;
+	// Absolute lifetime cap: sliding idle expiry must not let a session live forever.
+	if (Date.now() - new Date(data.createdAt).getTime() > ABSOLUTE_TTL_SECONDS * 1000) {
+		await env.AUTH.delete(`sess:${sessionId}`);
+		return null;
+	}
 	await env.AUTH.put(`sess:${sessionId}`, record, { expirationTtl: IDLE_TTL_SECONDS });
-	return { ...(JSON.parse(record) as SessionData), sessionId };
+	return { ...data, sessionId };
 }
 
 export async function deleteSession(env: Env, sessionId: string): Promise<void> {

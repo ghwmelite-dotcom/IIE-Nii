@@ -25,4 +25,12 @@ describe("session store", () => {
 		expect(await readSession(env, "")).toBeNull();
 		expect(await readSession(env, "iie_session=garbage")).toBeNull();
 	});
+
+	it("rejects and purges a session past the 24h absolute lifetime cap", async () => {
+		const { cookie, sessionId } = await createSession(env, { userId: "u3", email: "c@ohcs.gov.gh" });
+		const old = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+		await env.AUTH.put(`sess:${sessionId}`, JSON.stringify({ userId: "u3", email: "c@ohcs.gov.gh", createdAt: old }));
+		expect(await readSession(env, cookie)).toBeNull();
+		expect(await env.AUTH.get(`sess:${sessionId}`)).toBeNull();
+	});
 });
