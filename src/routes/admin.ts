@@ -11,7 +11,7 @@ app.use("*", requireUser, requirePermission("admin.users.manage"));
 app.get("/users", async (c) => {
 	const { results } = await c.env.DB.prepare(
 		`SELECT u.user_id, u.email, u.status, u.last_login_at, e.name, e.department_id,
-		        (SELECT GROUP_CONCAT(role_id) FROM user_roles r WHERE r.user_id = u.user_id) AS roles
+		        (SELECT json_group_array(json_object('role_id', role_id, 'scope_id', scope_id)) FROM user_roles r WHERE r.user_id = u.user_id) AS roles
 		 FROM users u LEFT JOIN employees e ON e.employee_id = u.employee_id ORDER BY u.email`,
 	).all();
 	return c.json({ users: results });

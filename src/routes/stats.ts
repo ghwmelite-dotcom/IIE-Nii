@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { requireUser, type AuthEnv } from "../lib/auth";
 
+// Org-wide aggregates on these routes are intentionally visible to all authenticated staff (Operations tab is unrestricted — documented decision; revisit if external users are onboarded).
 const app = new Hono<AuthEnv>();
 
 // Last event activity per leave case, derived from the event log (the source of

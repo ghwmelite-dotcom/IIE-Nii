@@ -5,6 +5,13 @@ const RL_WINDOW_SECONDS = 15 * 60;
 
 const enc = new TextEncoder();
 
+function timingSafeHexEqual(a: string, b: string): boolean {
+	const ea = enc.encode(a);
+	const eb = enc.encode(b);
+	if (ea.byteLength !== eb.byteLength) return false;
+	return crypto.subtle.timingSafeEqual(ea, eb);
+}
+
 interface OtpRecord {
 	hash: string;
 	attempts: number;
@@ -48,7 +55,7 @@ export async function verifyOtp(env: Env, email: string, code: string): Promise<
 		await env.AUTH.delete(key);
 		return false;
 	}
-	const ok = (await sha256Hex(`${email.toLowerCase()}:${code}`)) === rec.hash;
+	const ok = timingSafeHexEqual(await sha256Hex(`${email.toLowerCase()}:${code}`), rec.hash);
 	if (ok) {
 		await env.AUTH.delete(key);
 		return true;

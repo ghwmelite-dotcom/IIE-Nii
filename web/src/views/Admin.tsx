@@ -25,25 +25,41 @@ export default function Admin() {
 	useEffect(load, []);
 
 	async function provision() {
-		const r = await api.adminProvision();
-		setMsg(`Provisioned ${r.created} user(s); ${r.missingEmail.length} without email.`);
-		load();
+		try {
+			const r = await api.adminProvision();
+			setMsg(`Provisioned ${r.created} user(s); ${r.missingEmail.length} without email.`);
+			load();
+		} catch (e) {
+			setMsg(e instanceof Error ? e.message : String(e));
+		}
 	}
 
 	async function grant() {
 		if (!sel) return;
-		await api.adminGrant(sel, role, scope || undefined);
-		load();
+		try {
+			await api.adminGrant(sel, role, scope || undefined);
+			load();
+		} catch (e) {
+			setMsg(e instanceof Error ? e.message : String(e));
+		}
 	}
 
-	async function revoke(id: string, role_id: string) {
-		await api.adminRevoke(id, role_id);
-		load();
+	async function revoke(id: string, role_id: string, scope_id?: string) {
+		try {
+			await api.adminRevoke(id, role_id, scope_id);
+			load();
+		} catch (e) {
+			setMsg(e instanceof Error ? e.message : String(e));
+		}
 	}
 
 	async function toggle(id: string, status: string) {
-		await api.adminSetStatus(id, status === "active" ? "disabled" : "active");
-		load();
+		try {
+			await api.adminSetStatus(id, status === "active" ? "disabled" : "active");
+			load();
+		} catch (e) {
+			setMsg(e instanceof Error ? e.message : String(e));
+		}
 	}
 
 	return (
@@ -96,9 +112,17 @@ export default function Admin() {
 								<td className="py-1.5 font-mono">{u.email}</td>
 								<td>{u.name ?? "—"}</td>
 								<td className="space-x-1">
-									{(u.roles ? u.roles.split(",") : []).map((r) => (
-										<button key={r} onClick={() => revoke(u.user_id, r)} title="revoke" className="rounded bg-slate-100 px-1.5 py-0.5 hover:bg-red-100">
-											{r} ✕
+									{((): Array<{ role_id: string; scope_id: string }> => {
+										try { return u.roles ? (JSON.parse(u.roles) as Array<{ role_id: string; scope_id: string }>) : []; }
+										catch { return []; }
+									})().map((entry, i) => (
+										<button
+											key={i}
+											onClick={() => revoke(u.user_id, entry.role_id, entry.scope_id || undefined)}
+											title="revoke"
+											className="rounded bg-slate-100 px-1.5 py-0.5 hover:bg-red-100"
+										>
+											{entry.role_id}{entry.scope_id ? `@${entry.scope_id}` : ""} ✕
 										</button>
 									))}
 								</td>

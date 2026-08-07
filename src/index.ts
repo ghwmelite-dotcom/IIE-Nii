@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { canonicalEventSchema, eventBatchSchema, insertEvents, toStoredEvent } from "./lib/events";
 import type { EventRow } from "./lib/events";
-import { apiKeyAuth, requireUser, requirePermission } from "./lib/auth";
+import { apiKeyAuth, requireUser, requirePermission, currentUser } from "./lib/auth";
 import intelligence from "./routes/intelligence";
 import attendance from "./routes/attendance";
 import leave from "./routes/leave";
@@ -20,6 +20,7 @@ app.use("*", async (c, next) => {
 	c.header("X-Content-Type-Options", "nosniff");
 	c.header("Referrer-Policy", "strict-origin-when-cross-origin");
 	c.header("X-Frame-Options", "DENY");
+	// style-src 'unsafe-inline' is required by the current CSS-in-HTML setup; accepted and documented risk — revisit if a nonce-based approach is adopted.
 	c.header("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'");
 	if (c.env.ENVIRONMENT === "production") c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
 });
@@ -95,7 +96,12 @@ app.get("/api/events/recent", requireUser, async (c) => {
 		.bind(limit)
 		.all<EventRow>();
 
-	const events = results.map((row) => ({ ...row, metadata: JSON.parse(row.metadata) as unknown }));
+	const canReadAny = currentUser(c).capabilities.includes("events.read.any");
+	const events = results.map(({ resource, metadata, ...base }) =>
+		canReadAny
+			? { ...base, resource, metadata: JSON.parse(metadata) as unknown }
+			: { ...base },
+	);
 	return c.json({ events });
 });
 
@@ -104,6 +110,8 @@ app.get("/api/events/recent", requireUser, async (c) => {
 app.get("/api/events/stream", requireUser, (c) => {
 	const db = c.env.DB;
 	const encoder = new TextEncoder();
+	// Compute once after requireUser has run; capability is stable for this request.
+	const canReadAny = currentUser(c).capabilities.includes("events.read.any");
 
 	const stream = new ReadableStream<Uint8Array>({
 		async start(controller) {
@@ -123,9 +131,12 @@ app.get("/api/events/stream", requireUser, (c) => {
 						)
 						.bind(lastRowid)
 						.all<EventRow & { rowid: number }>();
-					for (const { rowid, metadata, ...row } of results) {
+					for (const { rowid, resource, metadata, ...row } of results) {
 						lastRowid = Math.max(lastRowid, rowid);
-						controller.enqueue(encoder.encode(`data: ${JSON.stringify({ ...row, metadata: JSON.parse(metadata) })}\n\n`));
+						const payload = canReadAny
+							? { ...row, resource, metadata: JSON.parse(metadata) }
+							: { ...row };
+						controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
 					}
 					controller.enqueue(encoder.encode(`: heartbeat\n\n`));
 				};

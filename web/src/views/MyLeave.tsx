@@ -4,6 +4,7 @@ import type { Employee, LeaveRequest, LeaveStatus } from "../api";
 import { useAuth } from "../auth/AuthContext";
 
 const LEAVE_TYPES = ["annual", "sick", "maternity", "study", "casual"];
+const APPROVER_ROLES = ["line_manager", "admin_officer", "director", "schedule_officer"];
 const STEPS = ["supervisor_review", "fa_verification", "director_fa_approval", "rtdd_review", "director_rtdd_approval"] as const;
 const STEP_ROLE: Record<(typeof STEPS)[number], string> = {
 	supervisor_review: "line_manager",
@@ -50,6 +51,7 @@ export default function MyLeave() {
 
 	// Derive employeeId from auth — hooks must all be declared before any early-return
 	const employeeId = me?.employee?.employee_id ?? "";
+	const isApprover = !!me?.employee && APPROVER_ROLES.includes(me.employee.role);
 
 	const deptOf = (employee_id: string) => employees.find((e) => e.employee_id === employee_id)?.department_id;
 	const nameOf = (employee_id: string) => employees.find((e) => e.employee_id === employee_id)?.name ?? employee_id;
@@ -57,8 +59,8 @@ export default function MyLeave() {
 	const refresh = useCallback(() => {
 		if (!employeeId) return;
 		api.myLeave(employeeId).then((r) => setMyRequests(r.requests)).catch((e) => setError(String(e)));
-		api.leaveInbox().then((r) => setInbox(r.requests)).catch((e) => setError(String(e)));
-	}, [employeeId]);
+		if (isApprover) { api.leaveInbox().then((r) => setInbox(r.requests)).catch((e) => setError(String(e))); }
+	}, [employeeId, isApprover]);
 
 	useEffect(() => {
 		api.employees().then((r) => setEmployees(r.employees)).catch(() => {});
@@ -230,70 +232,72 @@ export default function MyLeave() {
 					</section>
 				</div>
 
-				{/* Approver inbox */}
-				<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-					<h2 className="mb-1 text-sm font-semibold text-slate-700">Approver inbox</h2>
-					<p className="mb-3 text-xs text-slate-400">Pending requests at stages you are eligible for.</p>
-					{STEPS.map((step) => {
-						if (!eligibleForStep(step)) return null;
-						const reqs = inbox.filter((r) => r.current_step === step && eligibleForStep(step, deptOf(r.employee_id)));
-						return (
-							<div key={step} className="mb-4">
-								<h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-									{label(step)} <span className="text-slate-400">({reqs.length})</span>
-								</h3>
-								{reqs.length === 0 && <p className="text-xs text-slate-400">Nothing waiting.</p>}
-								<ul className="space-y-2">
-									{reqs.map((r) => (
-										<li key={r.request_id} className="rounded-lg border border-slate-200 p-3 text-sm">
-											<div className="flex items-center gap-2">
-												<span className="font-medium">{nameOf(r.employee_id)}</span>
-												<span className="text-xs text-slate-400">
-													{r.employee_id} · {deptOf(r.employee_id)}
-												</span>
-												<span className="ml-auto text-xs text-slate-500">
-													{r.type} · {r.start_date} → {r.end_date}
-												</span>
-											</div>
-											<div className="mt-2 flex flex-wrap items-center gap-2">
-												<button
-													onClick={() => act(r, "approve")}
-													disabled={busy}
-													className="rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
-												>
-													Approve
-												</button>
-												<button
-													onClick={() => setRejecting(rejecting === r.request_id ? null : r.request_id)}
-													className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white"
-												>
-													Reject
-												</button>
-											</div>
-											{rejecting === r.request_id && (
-												<div className="mt-2 flex gap-2">
-													<input
-														value={reason}
-														onChange={(e) => setReason(e.target.value)}
-														placeholder="Reason (required)"
-														className="flex-1 rounded-md border border-slate-300 px-2 py-1 text-xs outline-none"
-													/>
+				{/* Approver inbox — only rendered for users with an approver role */}
+				{isApprover && (
+					<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+						<h2 className="mb-1 text-sm font-semibold text-slate-700">Approver inbox</h2>
+						<p className="mb-3 text-xs text-slate-400">Pending requests at stages you are eligible for.</p>
+						{STEPS.map((step) => {
+							if (!eligibleForStep(step)) return null;
+							const reqs = inbox.filter((r) => r.current_step === step && eligibleForStep(step, deptOf(r.employee_id)));
+							return (
+								<div key={step} className="mb-4">
+									<h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+										{label(step)} <span className="text-slate-400">({reqs.length})</span>
+									</h3>
+									{reqs.length === 0 && <p className="text-xs text-slate-400">Nothing waiting.</p>}
+									<ul className="space-y-2">
+										{reqs.map((r) => (
+											<li key={r.request_id} className="rounded-lg border border-slate-200 p-3 text-sm">
+												<div className="flex items-center gap-2">
+													<span className="font-medium">{nameOf(r.employee_id)}</span>
+													<span className="text-xs text-slate-400">
+														{r.employee_id} · {deptOf(r.employee_id)}
+													</span>
+													<span className="ml-auto text-xs text-slate-500">
+														{r.type} · {r.start_date} → {r.end_date}
+													</span>
+												</div>
+												<div className="mt-2 flex flex-wrap items-center gap-2">
 													<button
-														onClick={() => act(r, "reject")}
-														disabled={busy || !reason.trim()}
-														className="rounded bg-red-700 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+														onClick={() => act(r, "approve")}
+														disabled={busy}
+														className="rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
 													>
-														Confirm
+														Approve
+													</button>
+													<button
+														onClick={() => setRejecting(rejecting === r.request_id ? null : r.request_id)}
+														className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white"
+													>
+														Reject
 													</button>
 												</div>
-											)}
-										</li>
-									))}
-								</ul>
-							</div>
-						);
-					})}
-				</section>
+												{rejecting === r.request_id && (
+													<div className="mt-2 flex gap-2">
+														<input
+															value={reason}
+															onChange={(e) => setReason(e.target.value)}
+															placeholder="Reason (required)"
+															className="flex-1 rounded-md border border-slate-300 px-2 py-1 text-xs outline-none"
+														/>
+														<button
+															onClick={() => act(r, "reject")}
+															disabled={busy || !reason.trim()}
+															className="rounded bg-red-700 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+														>
+															Confirm
+														</button>
+													</div>
+												)}
+											</li>
+										))}
+									</ul>
+								</div>
+							);
+						})}
+					</section>
+				)}
 			</div>
 		</div>
 	);

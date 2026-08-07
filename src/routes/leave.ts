@@ -60,6 +60,8 @@ app.get("/", requireUser, async (c) => {
 	const isApprover = me.employee ? APPROVER_ROLES.includes(me.employee.role) : false;
 	if (!isApprover && !me.capabilities.includes("leave.read.any")) return c.json({ error: "Forbidden" }, 403);
 
+	// The inbox currently returns all pending requests; the client filters by eligibility. Server still
+	// enforces per-step eligibility on transition. Tightening to server-side department scoping is a known follow-up.
 	const { results } = step
 		? await c.env.DB.prepare(
 				"SELECT * FROM leave_requests WHERE status = 'pending' AND current_step = ? ORDER BY created_at ASC LIMIT 200",
