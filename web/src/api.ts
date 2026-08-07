@@ -125,10 +125,55 @@ export interface LeaveTransition {
 
 export type LeaveStatus = LeaveRequest & { history: LeaveTransition[] };
 
+export interface Me {
+	email: string;
+	user_id: string;
+	employee_id: string | null;
+	employee: { employee_id: string; name: string; department_id: string; role: string } | null;
+	roles: string[];
+	capabilities: string[];
+	scopes: { role_id: string; scope_type: string; scope_id: string }[];
+}
+
+export interface AdminUser {
+	user_id: string;
+	email: string;
+	status: string;
+	last_login_at: string | null;
+	name: string | null;
+	department_id: string | null;
+	roles: string | null;
+}
+
+export interface AuditEntry {
+	id: string;
+	actor_email: string | null;
+	action: string;
+	target_id: string | null;
+	created_at: string;
+}
+
+export class AuthError extends Error {
+	constructor() {
+		super("Not signed in");
+	}
+}
+
+const JSON_MUT = { "Content-Type": "application/json", "X-Requested-With": "fetch" };
+
 async function get<T>(path: string): Promise<T> {
-	const res = await fetch(path);
+	const res = await fetch(path, { credentials: "include" });
+	if (res.status === 401) throw new AuthError();
 	if (!res.ok) throw new Error(`GET ${path} → ${res.status}`);
 	return res.json() as Promise<T>;
+}
+
+async function mut<T>(path: string, body: unknown): Promise<T> {
+	const res = await fetch(path, { method: "POST", credentials: "include", headers: JSON_MUT, body: JSON.stringify(body) });
+	const data = (await res.json().catch(() => ({}))) as { error?: string };
+	if (res.status === 401) throw new AuthError();
+	if (!res.ok) throw new Error(data.error ?? `POST ${path} → ${res.status}`);
+	return data as T;
 }
 
 export const api = {
@@ -147,33 +192,23 @@ export const api = {
 	myLeave: (employeeId: string) => get<{ requests: LeaveRequest[] }>(`/api/leave?employee_id=${encodeURIComponent(employeeId)}`),
 	leaveInbox: (step?: string) => get<{ requests: LeaveRequest[] }>(`/api/leave${step ? `?current_step=${step}` : ""}`),
 	leaveStatus: (id: string) => get<LeaveStatus>(`/api/leave/${encodeURIComponent(id)}/status`),
-	requestLeave: async (employee_id: string, type: string, start_date: string, end_date: string) => {
-		const res = await fetch("/api/leave/request", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ employee_id, type, start_date, end_date }),
-		});
-		const body = (await res.json()) as { request_id?: string; error?: string };
-		if (!res.ok) throw new Error(body.error ?? `POST /api/leave/request → ${res.status}`);
-		return body as { request_id: string };
-	},
-	transitionLeave: async (id: string, action: "approve" | "reject" | "cancel", actor_id: string, reason?: string) => {
-		const res = await fetch(`/api/leave/${encodeURIComponent(id)}/transition`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ action, actor_id, ...(reason ? { reason } : {}) }),
-		});
-		const body = (await res.json()) as { status?: string; error?: string };
-		if (!res.ok) throw new Error(body.error ?? `POST /api/leave/${id}/transition → ${res.status}`);
-		return body;
-	},
-	chat: async (employee_id: string, message: string): Promise<ChatResponse> => {
-		const res = await fetch("/api/chatbot/message", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ employee_id, message }),
-		});
-		if (!res.ok) throw new Error(`POST /api/chatbot/message → ${res.status}`);
-		return res.json() as Promise<ChatResponse>;
-	},
+	me: () => get<Me>("/auth/me"),
+	requestCode: (email: string) => mut<unknown>("/auth/request-code", { email }),
+	verifyCode: (email: string, code: string) => mut<unknown>("/auth/verify", { email, code }),
+	logout: () => mut<unknown>("/auth/logout", {}),
+	requestLeave: (type: string, start_date: string, end_date: string, on_behalf_of?: string) =>
+		mut<{ request_id: string }>("/api/leave/request", { type, start_date, end_date, ...(on_behalf_of ? { on_behalf_of } : {}) }),
+	transitionLeave: (id: string, action: "approve" | "reject" | "cancel", reason?: string) =>
+		mut<{ status: string }>(`/api/leave/${encodeURIComponent(id)}/transition`, { action, ...(reason ? { reason } : {}) }),
+	chat: (message: string) => mut<ChatResponse>("/api/chatbot/message", { message }),
+	adminUsers: () => get<{ users: AdminUser[] }>("/api/admin/users"),
+	adminUser: (id: string) =>
+		get<{ user_id: string; email: string; status: string; roles: { role_id: string; scope_type: string; scope_id: string }[] }>(`/api/admin/users/${id}`),
+	adminGrant: (id: string, role_id: string, scope_id?: string) =>
+		mut<unknown>(`/api/admin/users/${id}/roles`, { role_id, ...(scope_id ? { scope_type: "department", scope_id } : {}) }),
+	adminRevoke: (id: string, role_id: string, scope_id?: string) =>
+		mut<unknown>(`/api/admin/users/${id}/roles/revoke`, { role_id, ...(scope_id ? { scope_id } : {}) }),
+	adminSetStatus: (id: string, status: "active" | "disabled") => mut<unknown>(`/api/admin/users/${id}/status`, { status }),
+	adminProvision: () => mut<{ created: number; missingEmail: string[] }>("/api/admin/provision", {}),
+	adminAudit: () => get<{ entries: AuditEntry[] }>("/api/admin/audit"),
 };

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import type { Employee, LeaveRequest, LeaveStatus } from "../api";
-import EmployeePicker from "../components/EmployeePicker";
+import { useAuth } from "../auth/AuthContext";
 
 const LEAVE_TYPES = ["annual", "sick", "maternity", "study", "casual"];
 const STEPS = ["supervisor_review", "fa_verification", "director_fa_approval", "rtdd_review", "director_rtdd_approval"] as const;
@@ -31,7 +31,7 @@ const STATUS_BADGE: Record<string, string> = {
 const label = (s: string) => s.replaceAll("_", " ");
 
 export default function MyLeave() {
-	const [employeeId, setEmployeeId] = useState("EMP-0001");
+	const { me } = useAuth();
 	const [employees, setEmployees] = useState<Employee[]>([]);
 	const [myRequests, setMyRequests] = useState<LeaveRequest[]>([]);
 	const [inbox, setInbox] = useState<LeaveRequest[]>([]);
@@ -45,14 +45,17 @@ export default function MyLeave() {
 
 	const [expanded, setExpanded] = useState<string | null>(null);
 	const [statuses, setStatuses] = useState<Record<string, LeaveStatus>>({});
-	const [actors, setActors] = useState<Record<string, string>>({});
 	const [rejecting, setRejecting] = useState<string | null>(null);
 	const [reason, setReason] = useState("");
+
+	// Derive employeeId from auth — hooks must all be declared before any early-return
+	const employeeId = me?.employee?.employee_id ?? "";
 
 	const deptOf = (employee_id: string) => employees.find((e) => e.employee_id === employee_id)?.department_id;
 	const nameOf = (employee_id: string) => employees.find((e) => e.employee_id === employee_id)?.name ?? employee_id;
 
 	const refresh = useCallback(() => {
+		if (!employeeId) return;
 		api.myLeave(employeeId).then((r) => setMyRequests(r.requests)).catch((e) => setError(String(e)));
 		api.leaveInbox().then((r) => setInbox(r.requests)).catch((e) => setError(String(e)));
 	}, [employeeId]);
@@ -67,12 +70,30 @@ export default function MyLeave() {
 		return () => clearInterval(id);
 	}, [refresh]);
 
+	// All hooks declared — now safe to early-return
+	if (!me?.employee) {
+		return (
+			<div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+				Your account isn&apos;t linked to an employee record — leave self-service is unavailable.
+			</div>
+		);
+	}
+
+	const myEmp = me.employee;
+
+	const eligibleForStep = (step: (typeof STEPS)[number], reqEmployeeDept?: string) => {
+		if (!myEmp) return false;
+		if (myEmp.role !== STEP_ROLE[step]) return false;
+		const dept = step === "supervisor_review" ? reqEmployeeDept : STEP_DEPT[step];
+		return dept === undefined || myEmp.department_id === dept;
+	};
+
 	async function submit() {
 		if (!startDate || !endDate) return;
 		setBusy(true);
 		setNotice(null);
 		try {
-			const { request_id } = await api.requestLeave(employeeId, type, startDate, endDate);
+			const { request_id } = await api.requestLeave(type, startDate, endDate);
 			setNotice(`Submitted ${request_id} — now waiting at supervisor review.`);
 			setStartDate("");
 			setEndDate("");
@@ -92,20 +113,10 @@ export default function MyLeave() {
 		}
 	}
 
-	function eligibleActors(req: LeaveRequest): Employee[] {
-		const step = req.current_step as (typeof STEPS)[number];
-		const role = STEP_ROLE[step];
-		if (!role) return [];
-		const dept = step === "supervisor_review" ? deptOf(req.employee_id) : STEP_DEPT[step];
-		return employees.filter((e) => e.role === role && (dept === undefined || e.department_id === dept));
-	}
-
 	async function act(req: LeaveRequest, action: "approve" | "reject") {
-		const actor = actors[req.request_id] ?? eligibleActors(req)[0]?.employee_id;
-		if (!actor) return;
 		setBusy(true);
 		try {
-			await api.transitionLeave(req.request_id, action, actor, action === "reject" ? reason : undefined);
+			await api.transitionLeave(req.request_id, action, action === "reject" ? reason : undefined);
 			setRejecting(null);
 			setReason("");
 			setStatuses((prev) => {
@@ -128,15 +139,6 @@ export default function MyLeave() {
 					{error}
 				</p>
 			)}
-
-			<div className="flex items-center gap-3">
-				<span className="text-sm text-slate-500">Acting as</span>
-				<EmployeePicker
-					value={employeeId}
-					onChange={setEmployeeId}
-					className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-slate-500"
-				/>
-			</div>
 
 			<div className="grid gap-6 lg:grid-cols-2">
 				<div className="space-y-6">
@@ -188,7 +190,7 @@ export default function MyLeave() {
 					{/* My requests */}
 					<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 						<h2 className="mb-3 text-sm font-semibold text-slate-700">My requests</h2>
-						{myRequests.length === 0 && <p className="text-sm text-slate-400">No requests yet for {employeeId}.</p>}
+						{myRequests.length === 0 && <p className="text-sm text-slate-400">No requests yet.</p>}
 						<ul className="space-y-2">
 							{myRequests.map((r) => (
 								<li key={r.request_id} className="rounded-lg border border-slate-200 p-3">
@@ -204,7 +206,7 @@ export default function MyLeave() {
 										</span>
 										{r.status === "pending" && (
 											<button
-												onClick={() => api.transitionLeave(r.request_id, "cancel", employeeId).then(refresh).catch((e) => setError(String(e)))}
+												onClick={() => api.transitionLeave(r.request_id, "cancel").then(refresh).catch((e) => setError(String(e)))}
 												className="text-xs text-red-600 hover:underline"
 											>
 												Cancel
@@ -231,11 +233,10 @@ export default function MyLeave() {
 				{/* Approver inbox */}
 				<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 					<h2 className="mb-1 text-sm font-semibold text-slate-700">Approver inbox</h2>
-					<p className="mb-3 text-xs text-slate-400">
-						Pending requests by stage. Pick the officer you act as — the list only offers roles allowed at that stage.
-					</p>
+					<p className="mb-3 text-xs text-slate-400">Pending requests at stages you are eligible for.</p>
 					{STEPS.map((step) => {
-						const reqs = inbox.filter((r) => r.current_step === step);
+						if (!eligibleForStep(step)) return null;
+						const reqs = inbox.filter((r) => r.current_step === step && eligibleForStep(step, deptOf(r.employee_id)));
 						return (
 							<div key={step} className="mb-4">
 								<h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -243,67 +244,51 @@ export default function MyLeave() {
 								</h3>
 								{reqs.length === 0 && <p className="text-xs text-slate-400">Nothing waiting.</p>}
 								<ul className="space-y-2">
-									{reqs.map((r) => {
-										const eligible = eligibleActors(r);
-										const actor = actors[r.request_id] ?? eligible[0]?.employee_id ?? "";
-										return (
-											<li key={r.request_id} className="rounded-lg border border-slate-200 p-3 text-sm">
-												<div className="flex items-center gap-2">
-													<span className="font-medium">{nameOf(r.employee_id)}</span>
-													<span className="text-xs text-slate-400">
-														{r.employee_id} · {deptOf(r.employee_id)}
-													</span>
-													<span className="ml-auto text-xs text-slate-500">
-														{r.type} · {r.start_date} → {r.end_date}
-													</span>
-												</div>
-												<div className="mt-2 flex flex-wrap items-center gap-2">
-													<select
-														value={actor}
-														onChange={(e) => setActors((prev) => ({ ...prev, [r.request_id]: e.target.value }))}
-														className="max-w-56 truncate rounded-md border border-slate-300 px-2 py-1 text-xs outline-none"
-														title="Acting officer"
-													>
-														{eligible.map((e) => (
-															<option key={e.employee_id} value={e.employee_id}>
-																{e.name} — {e.employee_id}
-															</option>
-														))}
-													</select>
+									{reqs.map((r) => (
+										<li key={r.request_id} className="rounded-lg border border-slate-200 p-3 text-sm">
+											<div className="flex items-center gap-2">
+												<span className="font-medium">{nameOf(r.employee_id)}</span>
+												<span className="text-xs text-slate-400">
+													{r.employee_id} · {deptOf(r.employee_id)}
+												</span>
+												<span className="ml-auto text-xs text-slate-500">
+													{r.type} · {r.start_date} → {r.end_date}
+												</span>
+											</div>
+											<div className="mt-2 flex flex-wrap items-center gap-2">
+												<button
+													onClick={() => act(r, "approve")}
+													disabled={busy}
+													className="rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+												>
+													Approve
+												</button>
+												<button
+													onClick={() => setRejecting(rejecting === r.request_id ? null : r.request_id)}
+													className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white"
+												>
+													Reject
+												</button>
+											</div>
+											{rejecting === r.request_id && (
+												<div className="mt-2 flex gap-2">
+													<input
+														value={reason}
+														onChange={(e) => setReason(e.target.value)}
+														placeholder="Reason (required)"
+														className="flex-1 rounded-md border border-slate-300 px-2 py-1 text-xs outline-none"
+													/>
 													<button
-														onClick={() => act(r, "approve")}
-														disabled={busy || !actor}
-														className="rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+														onClick={() => act(r, "reject")}
+														disabled={busy || !reason.trim()}
+														className="rounded bg-red-700 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
 													>
-														Approve
-													</button>
-													<button
-														onClick={() => setRejecting(rejecting === r.request_id ? null : r.request_id)}
-														className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white"
-													>
-														Reject
+														Confirm
 													</button>
 												</div>
-												{rejecting === r.request_id && (
-													<div className="mt-2 flex gap-2">
-														<input
-															value={reason}
-															onChange={(e) => setReason(e.target.value)}
-															placeholder="Reason (required)"
-															className="flex-1 rounded-md border border-slate-300 px-2 py-1 text-xs outline-none"
-														/>
-														<button
-															onClick={() => act(r, "reject")}
-															disabled={busy || !reason.trim()}
-															className="rounded bg-red-700 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
-														>
-															Confirm
-														</button>
-													</div>
-												)}
-											</li>
-										);
-									})}
+											)}
+										</li>
+									))}
 								</ul>
 							</div>
 						);

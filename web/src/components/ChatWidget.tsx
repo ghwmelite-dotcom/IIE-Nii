@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import EmployeePicker from "./EmployeePicker";
 
 interface Message {
 	role: "user" | "bot";
@@ -16,7 +15,6 @@ const SUGGESTIONS = [
 
 export default function ChatWidget() {
 	const [open, setOpen] = useState(false);
-	const [employeeId, setEmployeeId] = useState("EMP-0001");
 	const [input, setInput] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [messages, setMessages] = useState<Message[]>([]);
@@ -32,7 +30,7 @@ export default function ChatWidget() {
 		setMessages((m) => [...m, { role: "user", text }]);
 		setBusy(true);
 		try {
-			const res = await api.chat(employeeId, text);
+			const res = await api.chat(text);
 			setMessages((m) => [...m, { role: "bot", text: res.reply, sources: res.sources }]);
 		} catch {
 			setMessages((m) => [...m, { role: "bot", text: "Something went wrong — please try again." }]);
@@ -77,14 +75,6 @@ export default function ChatWidget() {
 							<path d="M6 6l12 12M18 6L6 18" />
 						</svg>
 					</button>
-				</div>
-				<div className="mt-2.5 flex items-center gap-2">
-					<span className="text-[10px] font-medium uppercase tracking-wider text-slate-500">Speaking as</span>
-					<EmployeePicker
-						value={employeeId}
-						onChange={setEmployeeId}
-						className="w-full min-w-0 flex-1 truncate rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-slate-200 outline-none backdrop-blur focus:border-indigo-400/50"
-					/>
 				</div>
 			</div>
 
