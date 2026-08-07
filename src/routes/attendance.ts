@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { insertEvents, toStoredEvent } from "../lib/events";
+import { apiKeyAuth, requireUser, currentUser, type AuthEnv } from "../lib/auth";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<AuthEnv>();
 
 // OHCS work hours. Accra is UTC year-round (no DST), so UTC dates/times are local.
 const LATE_AFTER_HHMM = 8 * 60 + 30; // 08:30
@@ -41,7 +42,7 @@ async function findEmployee(db: D1Database, input: { card_id?: string; employee_
 }
 
 // RFID reader webhook: employee taps in (PRD §5.2).
-app.post("/clock-in", async (c) => {
+app.post("/clock-in", apiKeyAuth, async (c) => {
 	const body = await c.req.json().catch(() => null);
 	const parsed = clockSchema.safeParse(body);
 	if (!parsed.success) {
@@ -87,7 +88,7 @@ app.post("/clock-in", async (c) => {
 });
 
 // RFID reader webhook: employee taps out.
-app.post("/clock-out", async (c) => {
+app.post("/clock-out", apiKeyAuth, async (c) => {
 	const body = await c.req.json().catch(() => null);
 	const parsed = clockSchema.safeParse(body);
 	if (!parsed.success) {
@@ -127,8 +128,10 @@ app.post("/clock-out", async (c) => {
 });
 
 // Attendance summary for an employee (PRD §10).
-app.get("/:employee_id/summary", async (c) => {
+app.get("/:employee_id/summary", requireUser, async (c) => {
 	const employeeId = c.req.param("employee_id");
+	const me = currentUser(c);
+	if (employeeId !== me.user.employee_id && !me.capabilities.includes("attendance.read.any")) return c.json({ error: "Forbidden" }, 403);
 	const employee = await c.env.DB.prepare("SELECT employee_id, name, department_id FROM employees WHERE employee_id = ?")
 		.bind(employeeId)
 		.first<Pick<EmployeeRow, "employee_id" | "name" | "department_id">>();
