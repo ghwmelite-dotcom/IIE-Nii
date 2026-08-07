@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { apiGet, apiPost, applyMigrations, seedOrg } from "./helpers";
+import { apiGet, apiPost, applyMigrations, seedOrg, seedUser, authGet } from "./helpers";
 
 interface CreatedRequest {
 	request_id: string;
@@ -20,10 +20,13 @@ function transition(id: string, action: string, actor: string, reason?: string) 
 	return apiPost(`/api/leave/${id}/transition`, { action, actor_id: actor, ...(reason ? { reason } : {}) });
 }
 
+let analystCookie: string;
+
 describe("leave workflow state machine", () => {
 	beforeAll(async () => {
 		await applyMigrations();
 		await seedOrg();
+		analystCookie = await seedUser("u-lv-analyst", "lv-analyst@test.local", null, ["process_analyst"]);
 	});
 
 	it("walks the full approval chain and emits the prescribed event trace", async () => {
@@ -35,7 +38,7 @@ describe("leave workflow state machine", () => {
 		expect(done.status).toBe(200);
 		expect(((await done.json()) as { status: string }).status).toBe("completed");
 
-		const trace = (await (await apiGet(`/api/events?case_id=${id}`)).json()) as { events: { activity: string }[] };
+		const trace = (await (await authGet(`/api/events?case_id=${id}`, analystCookie)).json()) as { events: { activity: string }[] };
 		expect(trace.events.map((e) => e.activity)).toEqual([
 			"leave_submitted",
 			"supervisor_review",
@@ -63,7 +66,7 @@ describe("leave workflow state machine", () => {
 		const done = await transition(id, "approve", "DIR-RTDD");
 		expect(((await done.json()) as { status: string }).status).toBe("completed");
 
-		const trace = (await (await apiGet(`/api/events?case_id=${id}`)).json()) as { events: { activity: string }[] };
+		const trace = (await (await authGet(`/api/events?case_id=${id}`, analystCookie)).json()) as { events: { activity: string }[] };
 		expect(trace.events.map((e) => e.activity)).toEqual([
 			"leave_submitted",
 			"supervisor_review",
