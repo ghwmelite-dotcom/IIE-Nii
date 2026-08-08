@@ -1,6 +1,8 @@
 import { Hono } from "hono";
+import { requireUser, type AuthEnv } from "../lib/auth";
 
-const app = new Hono<{ Bindings: Env }>();
+// Org-wide aggregates on these routes are intentionally visible to all authenticated staff (Operations tab is unrestricted — documented decision; revisit if external users are onboarded).
+const app = new Hono<AuthEnv>();
 
 // Last event activity per leave case, derived from the event log (the source of
 // truth, PRD §4) so seeded history counts too. rowid breaks timestamp ties
@@ -24,7 +26,7 @@ interface PipelineRow {
 }
 
 // Leave requests grouped by the step they're currently waiting at.
-app.get("/leave-pipeline", async (c) => {
+app.get("/leave-pipeline", requireUser, async (c) => {
 	const { results } = await c.env.DB.prepare(PIPELINE_SQL).all<PipelineRow>();
 	const stages: Record<string, number> = {};
 	for (const row of results) {
@@ -47,7 +49,7 @@ app.get("/leave-pipeline", async (c) => {
 });
 
 // Headline numbers for the operations dashboard.
-app.get("/overview", async (c) => {
+app.get("/overview", requireUser, async (c) => {
 	const today = new Date().toISOString().slice(0, 10);
 	const [employees, eventsTotal, eventsToday, perSource, flagged, pipeline, lastRun] = await Promise.all([
 		c.env.DB.prepare("SELECT COUNT(*) AS n FROM employees").first<{ n: number }>(),
@@ -84,7 +86,7 @@ app.get("/overview", async (c) => {
 });
 
 // Per-day attendance activity for the heatmap (PRD Phase 4, operations view).
-app.get("/attendance-daily", async (c) => {
+app.get("/attendance-daily", requireUser, async (c) => {
 	const days = Math.min(Number(c.req.query("days") ?? 30) || 30, 90);
 	const since = new Date(Date.now() - days * 86_400_000).toISOString();
 
@@ -116,7 +118,7 @@ app.get("/attendance-daily", async (c) => {
 
 // Department comparison for the decision-support view (PRD §6.4): punctuality
 // from clock-in events + average leave cycle time for completed cases.
-app.get("/department-insights", async (c) => {
+app.get("/department-insights", requireUser, async (c) => {
 	const { results: punctuality } = await c.env.DB.prepare(
 		`SELECT json_extract(metadata, '$.department') AS department,
 		        COUNT(*) AS clock_ins,

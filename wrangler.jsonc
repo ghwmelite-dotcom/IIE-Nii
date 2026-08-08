@@ -15,7 +15,8 @@
     "ENVIRONMENT": "local",
     "AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
     "AI_INTENT_MODEL": "@cf/meta/llama-3.2-3b-instruct",
-    "AI_EMBED_MODEL": "@cf/baai/bge-base-en-v1.5"
+    "AI_EMBED_MODEL": "@cf/baai/bge-base-en-v1.5",
+    "EMAIL_SENDER": ""
   },
 
   // Process mining every 6h (PRD §4.2); daily anomaly/escalation checks at 18:43
@@ -47,7 +48,8 @@
   // placeholder id; for remote, `wrangler kv namespace create CONFIG` and put
   // the real id here.
   "kv_namespaces": [
-    { "binding": "CONFIG", "id": "214e349f1c33498bad6228092ba15338" }
+    { "binding": "CONFIG", "id": "214e349f1c33498bad6228092ba15338" },
+    { "binding": "AUTH", "id": "auth_placeholder_replace_at_deploy" }
   ],
 
   // Dashboard SPA (web/, built with Vite). The Worker delegates non-/api paths
@@ -57,5 +59,28 @@
     "directory": "./web/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application"
+  },
+
+  // Named environments for `wrangler deploy --env staging|production`.
+  // Placeholder ids are replaced with real resource ids at deploy time.
+  "env": {
+    "staging": {
+      "vars": { "ENVIRONMENT": "staging", "AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "AI_INTENT_MODEL": "@cf/meta/llama-3.2-3b-instruct", "AI_EMBED_MODEL": "@cf/baai/bge-base-en-v1.5", "EMAIL_SENDER": "" },
+      "d1_databases": [{ "binding": "DB", "database_name": "iie-event-log-staging", "database_id": "staging_d1_placeholder", "migrations_dir": "./migrations" }],
+      "kv_namespaces": [{ "binding": "CONFIG", "id": "staging_config_placeholder" }, { "binding": "AUTH", "id": "staging_auth_placeholder" }],
+      "ai": { "binding": "AI", "remote": true },
+      "vectorize": [{ "binding": "VECTOR_INDEX", "index_name": "iie-policy-index-staging", "remote": true }],
+      "r2_buckets": [{ "binding": "POLICY_DOCS", "bucket_name": "iie-policy-docs-staging" }],
+      "assets": { "directory": "./web/dist", "binding": "ASSETS", "not_found_handling": "single-page-application" }
+    },
+    "production": {
+      "vars": { "ENVIRONMENT": "production", "AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "AI_INTENT_MODEL": "@cf/meta/llama-3.2-3b-instruct", "AI_EMBED_MODEL": "@cf/baai/bge-base-en-v1.5", "EMAIL_SENDER": "" },
+      "d1_databases": [{ "binding": "DB", "database_name": "iie-event-log", "database_id": "14cf9a00-3266-4edd-a224-d8411fd0daec", "migrations_dir": "./migrations" }],
+      "kv_namespaces": [{ "binding": "CONFIG", "id": "214e349f1c33498bad6228092ba15338" }, { "binding": "AUTH", "id": "prod_auth_placeholder" }],
+      "ai": { "binding": "AI", "remote": true },
+      "vectorize": [{ "binding": "VECTOR_INDEX", "index_name": "iie-policy-index", "remote": true }],
+      "r2_buckets": [{ "binding": "POLICY_DOCS", "bucket_name": "iie-policy-docs" }],
+      "assets": { "directory": "./web/dist", "binding": "ASSETS", "not_found_handling": "single-page-application" }
+    }
   }
 }

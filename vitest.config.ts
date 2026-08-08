@@ -11,6 +11,8 @@ export default defineConfig(async () => ({
 			miniflare: {
 				bindings: {
 					ENVIRONMENT: "test",
+					SESSION_SECRET: "test-session-secret-0123456789",
+					API_KEY: "local-dev-key",
 					MIGRATIONS: await readD1Migrations("./migrations"),
 				},
 			},

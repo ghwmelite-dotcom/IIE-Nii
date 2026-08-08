@@ -1,4 +1,7 @@
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
+import { readSession } from "./session";
+import { loadUserContext, type UserContext } from "./users";
+import type { Capability } from "./rbac";
 
 /**
  * Shared-secret API key for machine-to-machine endpoints (event ingestion,
@@ -27,3 +30,36 @@ export const apiKeyAuth: MiddlewareHandler<{ Bindings: Env }> = async (c, next) 
 
 	await next();
 };
+
+/** Shared Hono env with the authenticated user attached. */
+export type AuthEnv = { Bindings: Env; Variables: { user: UserContext } };
+
+/** Attaches the authenticated user context to the request, or 401s. */
+export const requireUser: MiddlewareHandler<AuthEnv> = async (c, next) => {
+	const cookie = c.req.header("Cookie") ?? "";
+	const sess = await readSession(c.env, cookie);
+	if (!sess) return c.json({ error: "Not signed in" }, 401);
+	const ctx = await loadUserContext(c.env, sess.userId);
+	if (!ctx) return c.json({ error: "Account not active" }, 401);
+	c.set("user", ctx);
+	await next();
+};
+
+/** Requires a capability; use AFTER requireUser. */
+export function requirePermission(cap: Capability): MiddlewareHandler<AuthEnv> {
+	return async (c, next) => {
+		const user = c.get("user");
+		if (!user || !user.capabilities.includes(cap)) return c.json({ error: "Forbidden" }, 403);
+		await next();
+	};
+}
+
+/** Lightweight CSRF guard for state-changing routes: requires a fetch header. */
+export const requireCsrf: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
+	if (c.req.header("X-Requested-With") !== "fetch") return c.json({ error: "Missing CSRF header" }, 403);
+	await next();
+};
+
+export function currentUser(c: Context<AuthEnv>): UserContext {
+	return c.get("user");
+}

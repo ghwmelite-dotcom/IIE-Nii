@@ -1,17 +1,29 @@
 import { Hono } from "hono";
 import { canonicalEventSchema, eventBatchSchema, insertEvents, toStoredEvent } from "./lib/events";
 import type { EventRow } from "./lib/events";
-import { apiKeyAuth } from "./lib/auth";
+import { apiKeyAuth, requireUser, requirePermission, currentUser } from "./lib/auth";
 import intelligence from "./routes/intelligence";
 import attendance from "./routes/attendance";
 import leave from "./routes/leave";
 import org from "./routes/org";
 import chatbot from "./routes/chatbot";
 import stats from "./routes/stats";
+import auth from "./routes/auth";
+import admin from "./routes/admin";
 import { runMiningJob } from "./mining/job";
 import { runDailyChecks } from "./jobs/daily";
 
 const app = new Hono<{ Bindings: Env }>();
+
+app.use("*", async (c, next) => {
+	await next();
+	c.header("X-Content-Type-Options", "nosniff");
+	c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+	c.header("X-Frame-Options", "DENY");
+	// style-src 'unsafe-inline' is required by the current CSS-in-HTML setup; accepted and documented risk — revisit if a nonce-based approach is adopted.
+	c.header("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'");
+	if (c.env.ENVIRONMENT === "production") c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+});
 
 app.get("/health", (c) => c.json({ status: "ok", environment: c.env.ENVIRONMENT }));
 
@@ -21,6 +33,8 @@ app.route("/api/leave", leave);
 app.route("/api/org", org);
 app.route("/api/chatbot", chatbot);
 app.route("/api/stats", stats);
+app.route("/auth", auth);
+app.route("/api/admin", admin);
 
 // Ingest a single event into the Unified Event Log.
 app.post("/api/events", apiKeyAuth, async (c) => {
@@ -54,7 +68,7 @@ app.post("/api/events/batch", apiKeyAuth, async (c) => {
 });
 
 // Retrieve the event trace for a single case, ordered by occurrence.
-app.get("/api/events", async (c) => {
+app.get("/api/events", requireUser, requirePermission("events.read.any"), async (c) => {
 	const caseId = c.req.query("case_id");
 	if (!caseId) {
 		return c.json({ error: "case_id query parameter is required" }, 400);
@@ -73,7 +87,7 @@ app.get("/api/events", async (c) => {
 
 // Latest events across all systems — the dashboard feed's initial load and the
 // polling fallback for when the SSE stream (/api/events/stream) is unavailable.
-app.get("/api/events/recent", async (c) => {
+app.get("/api/events/recent", requireUser, async (c) => {
 	const limit = Math.min(Number(c.req.query("limit") ?? 25) || 25, 200);
 	const { results } = await c.env.DB.prepare(
 		`SELECT event_id, case_id, activity, resource, "timestamp", source_system, metadata
@@ -82,15 +96,22 @@ app.get("/api/events/recent", async (c) => {
 		.bind(limit)
 		.all<EventRow>();
 
-	const events = results.map((row) => ({ ...row, metadata: JSON.parse(row.metadata) as unknown }));
+	const canReadAny = currentUser(c).capabilities.includes("events.read.any");
+	const events = results.map(({ resource, metadata, ...base }) =>
+		canReadAny
+			? { ...base, resource, metadata: JSON.parse(metadata) as unknown }
+			: { ...base },
+	);
 	return c.json({ events });
 });
 
 // Server-sent events live feed (PRD §4.2). Streams events inserted after the
 // client connects; the dashboard falls back to polling /recent if this errors.
-app.get("/api/events/stream", (c) => {
+app.get("/api/events/stream", requireUser, (c) => {
 	const db = c.env.DB;
 	const encoder = new TextEncoder();
+	// Compute once after requireUser has run; capability is stable for this request.
+	const canReadAny = currentUser(c).capabilities.includes("events.read.any");
 
 	const stream = new ReadableStream<Uint8Array>({
 		async start(controller) {
@@ -110,9 +131,12 @@ app.get("/api/events/stream", (c) => {
 						)
 						.bind(lastRowid)
 						.all<EventRow & { rowid: number }>();
-					for (const { rowid, metadata, ...row } of results) {
+					for (const { rowid, resource, metadata, ...row } of results) {
 						lastRowid = Math.max(lastRowid, rowid);
-						controller.enqueue(encoder.encode(`data: ${JSON.stringify({ ...row, metadata: JSON.parse(metadata) })}\n\n`));
+						const payload = canReadAny
+							? { ...row, resource, metadata: JSON.parse(metadata) }
+							: { ...row };
+						controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
 					}
 					controller.enqueue(encoder.encode(`: heartbeat\n\n`));
 				};

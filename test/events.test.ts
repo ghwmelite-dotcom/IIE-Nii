@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { apiGet, apiPost, applyMigrations } from "./helpers";
+import { apiGet, apiPost, applyMigrations, seedUser, authGet } from "./helpers";
 
 const VALID_EVENT = {
 	case_id: "TEST-1",
@@ -9,8 +9,13 @@ const VALID_EVENT = {
 	metadata: { department: "D1" },
 };
 
+let analystCookie: string;
+
 describe("event ingestion API", () => {
-	beforeAll(applyMigrations);
+	beforeAll(async () => {
+		await applyMigrations();
+		analystCookie = await seedUser("u-ev-analyst", "ev-analyst@test.local", null, ["process_analyst"]);
+	});
 
 	it("rejects unauthenticated writes", async () => {
 		const res = await apiPost("/api/events", VALID_EVENT, { "Content-Type": "application/json" });
@@ -45,19 +50,19 @@ describe("event ingestion API", () => {
 		expect(res.status).toBe(201);
 		expect(((await res.json()) as { ingested: number }).ingested).toBe(2);
 
-		const trace = await apiGet("/api/events?case_id=TRACE-1");
+		const trace = await authGet("/api/events?case_id=TRACE-1", analystCookie);
 		const body = (await trace.json()) as { count: number; events: { activity: string }[] };
 		expect(body.count).toBe(2);
 		expect(body.events.map((e) => e.activity)).toEqual(["clock_in", "clock_out"]);
 	});
 
 	it("requires case_id on the trace endpoint", async () => {
-		const res = await apiGet("/api/events");
+		const res = await authGet("/api/events", analystCookie);
 		expect(res.status).toBe(400);
 	});
 
 	it("streams newly ingested events over SSE", async () => {
-		const res = await apiGet("/api/events/stream");
+		const res = await authGet("/api/events/stream", analystCookie);
 		expect(res.status).toBe(200);
 		expect(res.headers.get("content-type")).toBe("text/event-stream");
 

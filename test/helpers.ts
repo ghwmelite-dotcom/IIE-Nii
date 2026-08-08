@@ -1,4 +1,5 @@
 import { applyD1Migrations, env, SELF } from "cloudflare:test";
+import { createSession } from "../src/lib/session";
 
 /** Apply all D1 migrations to the test database (records state, so once per file). */
 export async function applyMigrations() {
@@ -34,4 +35,26 @@ export function apiPost(path: string, body: unknown, headers: Record<string, str
 
 export function apiGet(path: string) {
 	return SELF.fetch(`http://test.local${path}`);
+}
+
+/** Insert a user (+ optional roles) and return a Cookie header string for them. */
+export async function seedUser(userId: string, email: string, employeeId: string | null, roles: string[] = []) {
+	await env.DB.prepare("INSERT INTO users (user_id, email, employee_id) VALUES (?, ?, ?) ON CONFLICT(email) DO NOTHING")
+		.bind(userId, email.toLowerCase(), employeeId).run();
+	for (const r of roles) {
+		await env.DB.prepare("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?) ON CONFLICT DO NOTHING").bind(userId, r).run();
+	}
+	const { cookie } = await createSession(env, { userId, email: email.toLowerCase() });
+	return cookie;
+}
+
+export function authPost(path: string, body: unknown, cookie: string) {
+	return SELF.fetch(`http://test.local${path}`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json", "X-Requested-With": "fetch", Cookie: cookie },
+		body: JSON.stringify(body),
+	});
+}
+export function authGet(path: string, cookie: string) {
+	return SELF.fetch(`http://test.local${path}`, { headers: { Cookie: cookie } });
 }

@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { runMiningJob } from "../mining/job";
 import { generateRecommendations } from "../lib/recommendations";
-import { apiKeyAuth } from "../lib/auth";
+import { apiKeyAuth, requireUser, requirePermission, type AuthEnv } from "../lib/auth";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<AuthEnv>();
 
 interface ModelRow {
 	model_id: string;
@@ -38,7 +38,7 @@ interface ConformanceRow {
 }
 
 // Latest discovered process model per source system (PRD §10).
-app.get("/process-map", async (c) => {
+app.get("/process-map", requireUser, requirePermission("intelligence.read"), async (c) => {
 	const source = c.req.query("source");
 	const sql = `
 		SELECT * FROM process_models p
@@ -59,7 +59,7 @@ app.get("/process-map", async (c) => {
 });
 
 // Bottleneck stats from the latest mining run, flagged pairs first (PRD §10).
-app.get("/bottlenecks", async (c) => {
+app.get("/bottlenecks", requireUser, requirePermission("intelligence.read"), async (c) => {
 	const source = c.req.query("source");
 	const sql = `
 		SELECT * FROM bottlenecks
@@ -76,7 +76,7 @@ app.get("/bottlenecks", async (c) => {
 });
 
 // Conformance deviations from the latest mining run, worst score first (PRD §10).
-app.get("/conformance", async (c) => {
+app.get("/conformance", requireUser, requirePermission("intelligence.read"), async (c) => {
 	const { results } = await c.env.DB.prepare(
 		`SELECT * FROM conformance_results
 		 WHERE detected_at = (SELECT MAX(detected_at) FROM conformance_results)
@@ -105,7 +105,7 @@ app.post("/run", apiKeyAuth, async (c) => {
 });
 
 // Rule-based decision-support feed (PRD §6.4, §10).
-app.get("/recommendations", async (c) => {
+app.get("/recommendations", requireUser, requirePermission("intelligence.read"), async (c) => {
 	const recommendations = await generateRecommendations(c.env);
 	return c.json({ generated_at: new Date().toISOString(), recommendations });
 });

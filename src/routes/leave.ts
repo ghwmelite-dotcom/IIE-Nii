@@ -4,23 +4,23 @@ import { insertEvents, toStoredEvent } from "../lib/events";
 import { createLeaveRequest } from "../lib/leave-actions";
 import { STEP_RULES, isLeaveStep, nextStep } from "../lib/workflow";
 import type { LeaveStep } from "../lib/workflow";
+import { requireUser, requireCsrf, currentUser, type AuthEnv } from "../lib/auth";
+import { writeAudit } from "../lib/audit";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<AuthEnv>();
+
+const APPROVER_ROLES = ["line_manager", "admin_officer", "director", "schedule_officer"];
 
 const createRequestSchema = z
 	.object({
-		employee_id: z.string().min(1),
 		type: z.string().min(1),
 		start_date: z.iso.date(),
 		end_date: z.iso.date(),
+		on_behalf_of: z.string().optional(),
 	})
 	.refine((d) => d.end_date >= d.start_date, { message: "end_date must not precede start_date" });
 
-const transitionSchema = z.object({
-	action: z.enum(["approve", "reject", "cancel"]),
-	actor_id: z.string().min(1),
-	reason: z.string().optional(),
-});
+const transitionSchema = z.object({ action: z.enum(["approve", "reject", "cancel"]), reason: z.string().optional() });
 
 interface EmployeeRow {
 	employee_id: string;
@@ -42,83 +42,85 @@ interface LeaveRequestRow {
 
 // List leave requests: ?employee_id=X for "my requests" (latest first);
 // no param = the approver inbox (pending only, optional ?current_step= filter).
-app.get("/", async (c) => {
+app.get("/", requireUser, async (c) => {
+	const me = currentUser(c);
 	const employeeId = c.req.query("employee_id");
 	const step = c.req.query("current_step");
 
 	if (employeeId) {
+		if (employeeId !== me.user.employee_id && !me.capabilities.includes("leave.read.any")) {
+			return c.json({ error: "Forbidden" }, 403);
+		}
 		const { results } = await c.env.DB.prepare(
 			"SELECT * FROM leave_requests WHERE employee_id = ? ORDER BY created_at DESC LIMIT 200",
-		)
-			.bind(employeeId)
-			.all<LeaveRequestRow>();
+		).bind(employeeId).all<LeaveRequestRow>();
 		return c.json({ requests: results });
 	}
 
+	const isApprover = me.employee ? APPROVER_ROLES.includes(me.employee.role) : false;
+	if (!isApprover && !me.capabilities.includes("leave.read.any")) return c.json({ error: "Forbidden" }, 403);
+
+	// The inbox currently returns all pending requests; the client filters by eligibility. Server still
+	// enforces per-step eligibility on transition. Tightening to server-side department scoping is a known follow-up.
 	const { results } = step
 		? await c.env.DB.prepare(
 				"SELECT * FROM leave_requests WHERE status = 'pending' AND current_step = ? ORDER BY created_at ASC LIMIT 200",
-			)
-				.bind(step)
-				.all<LeaveRequestRow>()
+			).bind(step).all<LeaveRequestRow>()
 		: await c.env.DB.prepare("SELECT * FROM leave_requests WHERE status = 'pending' ORDER BY created_at ASC LIMIT 200").all<LeaveRequestRow>();
 	return c.json({ requests: results });
 });
 
 // Submit a new leave request (PRD §5.3).
-app.post("/request", async (c) => {
+app.post("/request", requireUser, requireCsrf, async (c) => {
 	const body = await c.req.json().catch(() => null);
 	const parsed = createRequestSchema.safeParse(body);
-	if (!parsed.success) {
-		return c.json({ error: "Invalid leave request", issues: parsed.error.issues }, 400);
-	}
+	if (!parsed.success) return c.json({ error: "Invalid leave request", issues: parsed.error.issues }, 400);
 
-	const employee = await c.env.DB.prepare("SELECT * FROM employees WHERE employee_id = ?")
-		.bind(parsed.data.employee_id)
-		.first<EmployeeRow>();
-	if (!employee) {
-		return c.json({ error: "Unknown employee" }, 404);
+	const me = currentUser(c);
+	let employeeId = me.user.employee_id;
+	if (parsed.data.on_behalf_of && parsed.data.on_behalf_of !== employeeId) {
+		if (!me.capabilities.includes("leave.create.any")) return c.json({ error: "Not allowed to file for others" }, 403);
+		employeeId = parsed.data.on_behalf_of;
 	}
+	if (!employeeId) return c.json({ error: "Your account is not linked to an employee record" }, 400);
 
-	const { requestId, currentStep } = await createLeaveRequest(c.env.DB, employee, parsed.data);
+	const employee = await c.env.DB.prepare("SELECT * FROM employees WHERE employee_id = ?").bind(employeeId).first<EmployeeRow>();
+	if (!employee) return c.json({ error: "Unknown employee" }, 404);
+
+	const { requestId, currentStep } = await createLeaveRequest(c.env.DB, employee, {
+		type: parsed.data.type,
+		start_date: parsed.data.start_date,
+		end_date: parsed.data.end_date,
+	});
+	await writeAudit(c.env, { actorUserId: me.user.user_id, actorEmail: me.user.email, action: "leave.request.create", targetType: "leave_request", targetId: requestId, detail: { employeeId } });
 	return c.json({ request_id: requestId, status: "pending", current_step: currentStep }, 201);
 });
 
 // Advance the workflow: approve | reject | cancel (PRD §5.3).
-app.post("/:id/transition", async (c) => {
+app.post("/:id/transition", requireUser, requireCsrf, async (c) => {
 	const requestId = c.req.param("id");
 	const body = await c.req.json().catch(() => null);
 	const parsed = transitionSchema.safeParse(body);
-	if (!parsed.success) {
-		return c.json({ error: "Invalid transition", issues: parsed.error.issues }, 400);
-	}
+	if (!parsed.success) return c.json({ error: "Invalid transition", issues: parsed.error.issues }, 400);
 
-	const request = await c.env.DB.prepare("SELECT * FROM leave_requests WHERE request_id = ?")
-		.bind(requestId)
-		.first<LeaveRequestRow>();
-	if (!request) {
-		return c.json({ error: "Leave request not found" }, 404);
-	}
-	if (request.status !== "pending") {
-		return c.json({ error: `Request is already ${request.status}` }, 409);
-	}
+	const me = currentUser(c);
+	if (!me.user.employee_id) return c.json({ error: "Your account is not linked to an employee record" }, 403);
 
-	const actor = await c.env.DB.prepare("SELECT * FROM employees WHERE employee_id = ?")
-		.bind(parsed.data.actor_id)
-		.first<EmployeeRow>();
-	if (!actor) {
-		return c.json({ error: "Unknown actor" }, 404);
-	}
+	const request = await c.env.DB.prepare("SELECT * FROM leave_requests WHERE request_id = ?").bind(requestId).first<LeaveRequestRow>();
+	if (!request) return c.json({ error: "Leave request not found" }, 404);
+	if (request.status !== "pending") return c.json({ error: `Request is already ${request.status}` }, 409);
+
+	const actor = await c.env.DB.prepare("SELECT * FROM employees WHERE employee_id = ?").bind(me.user.employee_id).first<EmployeeRow>();
+	if (!actor) return c.json({ error: "Actor employee not found" }, 404);
 
 	const now = new Date().toISOString();
 	const step = request.current_step;
 
 	// Cancellation is the requester's action, available at any pending step.
 	if (parsed.data.action === "cancel") {
-		if (actor.employee_id !== request.employee_id) {
-			return c.json({ error: "Only the requester can cancel" }, 403);
-		}
+		if (actor.employee_id !== request.employee_id) return c.json({ error: "Only the requester can cancel" }, 403);
 		await finishRequest(c.env.DB, request, step, "cancelled", actor, now, parsed.data.reason);
+		await writeAudit(c.env, { actorUserId: me.user.user_id, actorEmail: me.user.email, action: "leave.transition.cancel", targetType: "leave_request", targetId: requestId });
 		return c.json({ request_id: requestId, status: "cancelled" });
 	}
 
@@ -140,11 +142,10 @@ app.post("/:id/transition", async (c) => {
 	}
 
 	if (parsed.data.action === "reject") {
-		if (!parsed.data.reason) {
-			return c.json({ error: "Rejection requires a reason" }, 400);
-		}
+		if (!parsed.data.reason) return c.json({ error: "Rejection requires a reason" }, 400);
 		await recordStep(c.env.DB, request, step, "rejected", actor, now, parsed.data.reason);
 		await finishRequest(c.env.DB, request, step, "rejected", actor, now, parsed.data.reason);
+		await writeAudit(c.env, { actorUserId: me.user.user_id, actorEmail: me.user.email, action: "leave.transition.reject", targetType: "leave_request", targetId: requestId, detail: { reason: parsed.data.reason } });
 		return c.json({ request_id: requestId, status: "rejected" });
 	}
 
@@ -153,6 +154,7 @@ app.post("/:id/transition", async (c) => {
 	const next = nextStep(step, request.type);
 	if (next === "completed") {
 		await finishRequest(c.env.DB, request, step, "completed", actor, now);
+		await writeAudit(c.env, { actorUserId: me.user.user_id, actorEmail: me.user.email, action: "leave.transition.approve", targetType: "leave_request", targetId: requestId, detail: { to: "completed" } });
 		return c.json({ request_id: requestId, status: "completed" });
 	}
 	await c.env.DB.batch([
@@ -161,23 +163,24 @@ app.post("/:id/transition", async (c) => {
 			`INSERT INTO workflow_transitions (transition_id, request_id, from_step, to_step, actor_id, "timestamp") VALUES (?, ?, ?, ?, ?, ?)`,
 		).bind(crypto.randomUUID(), requestId, step, next, actor.employee_id, now),
 	]);
+	await writeAudit(c.env, { actorUserId: me.user.user_id, actorEmail: me.user.email, action: "leave.transition.approve", targetType: "leave_request", targetId: requestId, detail: { to: next } });
 	return c.json({ request_id: requestId, status: "pending", current_step: next });
 });
 
 // Current status + full transition history (PRD §10).
-app.get("/:id/status", async (c) => {
+app.get("/:id/status", requireUser, async (c) => {
 	const requestId = c.req.param("id");
+	const me = currentUser(c);
 	const request = await c.env.DB.prepare("SELECT * FROM leave_requests WHERE request_id = ?")
 		.bind(requestId)
 		.first<LeaveRequestRow>();
-	if (!request) {
-		return c.json({ error: "Leave request not found" }, 404);
-	}
+	if (!request) return c.json({ error: "Leave request not found" }, 404);
+	const isOwner = request.employee_id === me.user.employee_id;
+	const isApprover = me.employee ? APPROVER_ROLES.includes(me.employee.role) : false;
+	if (!isOwner && !isApprover && !me.capabilities.includes("leave.read.any")) return c.json({ error: "Forbidden" }, 403);
 	const { results: history } = await c.env.DB.prepare(
 		`SELECT from_step, to_step, actor_id, "timestamp" FROM workflow_transitions WHERE request_id = ? ORDER BY "timestamp" ASC`,
-	)
-		.bind(requestId)
-		.all();
+	).bind(requestId).all();
 	return c.json({ ...request, history });
 });
 
