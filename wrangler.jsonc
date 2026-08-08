@@ -81,7 +81,7 @@
       "name": "iie",
       "account_id": "f4f236a6cd8fbddf397c6e9de17d8113",
       "routes": [{ "pattern": "iie.ohcsghana.org", "custom_domain": true }],
-      "vars": { "ENVIRONMENT": "production", "AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "AI_INTENT_MODEL": "@cf/meta/llama-3.2-3b-instruct", "AI_EMBED_MODEL": "@cf/baai/bge-base-en-v1.5", "EMAIL_SENDER": "", "TELEGRAM_BOT_TOKEN": "", "TELEGRAM_CHAT_ID": "" },
+      "vars": { "ENVIRONMENT": "production", "AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "AI_INTENT_MODEL": "@cf/meta/llama-3.2-3b-instruct", "AI_EMBED_MODEL": "@cf/baai/bge-base-en-v1.5", "EMAIL_SENDER": "OHCS IIE <no-reply@ohcsghana.org>", "TELEGRAM_BOT_TOKEN": "", "TELEGRAM_CHAT_ID": "" },
       "d1_databases": [{ "binding": "DB", "database_name": "iie-event-log", "database_id": "323a3c66-bf92-49e8-8661-2323628ef6ef", "migrations_dir": "./migrations" }],
       "kv_namespaces": [{ "binding": "CONFIG", "id": "44273c4b18aa42b9ad24966b7e6ac16a" }, { "binding": "AUTH", "id": "7886590605db47ca9fac597d4ec94d8a" }],
       "ai": { "binding": "AI", "remote": true },
