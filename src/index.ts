@@ -10,8 +10,10 @@ import chatbot from "./routes/chatbot";
 import stats from "./routes/stats";
 import auth from "./routes/auth";
 import admin from "./routes/admin";
+import reports from "./routes/reports";
 import { runMiningJob } from "./mining/job";
 import { runDailyChecks } from "./jobs/daily";
+import { runReportJob } from "./jobs/reports";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -35,6 +37,7 @@ app.route("/api/chatbot", chatbot);
 app.route("/api/stats", stats);
 app.route("/auth", auth);
 app.route("/api/admin", admin);
+app.route("/api/reports", reports);
 
 // Ingest a single event into the Unified Event Log.
 app.post("/api/events", apiKeyAuth, async (c) => {
@@ -180,10 +183,12 @@ export default {
 	// Two schedules (PRD §4.2, §5.2): process mining every 6h; attendance/leave
 	// housekeeping daily after work hours (Accra = UTC).
 	async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-		if (controller.cron === "43 18 * * *") {
-			ctx.waitUntil(runDailyChecks(env));
-		} else {
-			ctx.waitUntil(runMiningJob(env));
+		switch (controller.cron) {
+			case "43 18 * * *": ctx.waitUntil(runDailyChecks(env)); break;
+			case "0 6 * * 1": ctx.waitUntil(runReportJob(env, "weekly")); break;
+			case "0 6 1 * *": ctx.waitUntil(runReportJob(env, "monthly")); break;
+			case "0 6 1 1 *": ctx.waitUntil(runReportJob(env, "yearly")); break;
+			default: ctx.waitUntil(runMiningJob(env));
 		}
 	},
 } satisfies ExportedHandler<Env>;

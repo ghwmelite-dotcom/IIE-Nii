@@ -1,4 +1,6 @@
+import { useState, useEffect } from "react";
 import { api } from "../api";
+import type { ReportData } from "../api";
 import { usePoll } from "../hooks";
 import LoadError from "../components/LoadError";
 
@@ -23,6 +25,16 @@ const LEAVE_DAYS_SCALE = 10;
 export default function DecisionSupport() {
 	const recs = usePoll(api.recommendations, 30_000);
 	const departments = usePoll(api.departmentInsights, 30_000);
+	const bottlenecks = usePoll(api.bottlenecks, 30_000);
+
+	const [period, setPeriod] = useState<"weekly" | "monthly" | "yearly">("monthly");
+	const [report, setReport] = useState<ReportData | null>(null);
+	const [reportErr, setReportErr] = useState<string | null>(null);
+	useEffect(() => {
+		setReport(null);
+		setReportErr(null);
+		api.report(period).then(setReport).catch((e) => setReportErr(String(e)));
+	}, [period]);
 
 	const sorted = [...(recs.data?.recommendations ?? [])].sort(
 		(a, b) => (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3),
@@ -59,6 +71,28 @@ export default function DecisionSupport() {
 		<div className="space-y-6">
 			<LoadError label="recommendations" error={recs.error && !recs.data ? recs.error : null} />
 			<LoadError label="department insights" error={departments.error && !departments.data ? departments.error : null} />
+
+			{/* Bottlenecks — rendered at the very top */}
+			{(() => {
+				const flagged = (bottlenecks.data?.bottlenecks ?? []).filter((b) => b.flagged);
+				const DAY = 86_400_000;
+				return flagged.length > 0 ? (
+					<section className="rounded-xl border border-red-200 bg-red-50/60 p-4 shadow-sm">
+						<h2 className="mb-1 text-sm font-semibold text-red-800">Bottlenecks — slowest hand-offs</h2>
+						<p className="mb-3 text-xs text-red-700/70">Steps exceeding their SLA threshold, ranked by 95th-percentile wait.</p>
+						<div className="space-y-2">
+							{flagged.sort((a, b) => b.p95_ms - a.p95_ms).map((b) => (
+								<div key={b.id} className="flex items-center gap-3 rounded-lg border border-red-200 bg-white p-3 text-sm">
+									<span className="font-medium">{b.activity_pair.replaceAll("_", " ")}</span>
+									<span className="text-xs text-slate-400">{b.source.toLowerCase().replace("_", " ")}</span>
+									<span className="ml-auto text-xs text-slate-600">median {(b.median_ms / DAY).toFixed(1)}d · P95 {(b.p95_ms / DAY).toFixed(1)}d · {b.count} cases</span>
+								</div>
+							))}
+						</div>
+					</section>
+				) : null;
+			})()}
+
 			<div className="flex flex-wrap items-start gap-3">
 				<p className="flex-1 text-sm text-slate-500">
 					Rule-generated from the latest bottleneck, conformance, and variant analysis
@@ -92,6 +126,43 @@ export default function DecisionSupport() {
 					<p className="mt-1 text-sm text-slate-300">{top.detail}</p>
 				</div>
 			)}
+
+			{/* Reports section */}
+			<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+				<div className="mb-3 flex flex-wrap items-center gap-2">
+					<h2 className="text-sm font-semibold text-slate-700">Reports</h2>
+					<select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} className="rounded-md border border-slate-300 px-2 py-1 text-xs">
+						<option value="weekly">Weekly</option>
+						<option value="monthly">Monthly</option>
+						<option value="yearly">Yearly</option>
+					</select>
+					<div className="ml-auto flex gap-2">
+						<a href={api.reportCsvUrl(period)} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">Download CSV</a>
+						<button onClick={() => window.open(api.reportHtmlUrl(period), "_blank")} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">Open printable report</button>
+					</div>
+				</div>
+				{reportErr && <p className="text-xs text-red-700">{reportErr}</p>}
+				{report && (
+					<div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+						{[
+							["Employees", report.summary.employees],
+							["Events", report.summary.events],
+							["Leave submitted", report.summary.leave_submitted],
+							["Leave completed", report.summary.leave_completed],
+							["Avg leave cycle", report.summary.avg_leave_cycle_days != null ? `${report.summary.avg_leave_cycle_days.toFixed(1)}d` : "—"],
+							["Late rate", `${Math.round(report.summary.late_rate * 100)}%`],
+							["Flagged bottlenecks", report.process.flagged_bottlenecks],
+							["Conformance", report.process.conformance_rate != null ? `${Math.round(report.process.conformance_rate * 100)}%` : "—"],
+						].map(([label, value]) => (
+							<div key={String(label)} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+								<div className="text-[11px] uppercase tracking-wide text-slate-400">{label}</div>
+								<div className="text-lg font-semibold">{value}</div>
+							</div>
+						))}
+					</div>
+				)}
+				<p className="mt-2 text-[11px] text-slate-400">Windows are rolling (last 7 / 30 / 365 days). Scheduled reports are archived and pushed to Telegram automatically.</p>
+			</section>
 
 			{/* Department comparison */}
 			{depts.length > 0 && (

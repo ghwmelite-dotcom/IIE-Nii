@@ -16,13 +16,16 @@
     "AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
     "AI_INTENT_MODEL": "@cf/meta/llama-3.2-3b-instruct",
     "AI_EMBED_MODEL": "@cf/baai/bge-base-en-v1.5",
-    "EMAIL_SENDER": ""
+    "EMAIL_SENDER": "",
+    "TELEGRAM_BOT_TOKEN": "",
+    "TELEGRAM_CHAT_ID": ""
   },
 
   // Process mining every 6h (PRD §4.2); daily anomaly/escalation checks at 18:43
   // UTC, after OHCS work hours (PRD §5.2, §5.3).
+  // Report generation: weekly Mon 06:00, monthly 1st 06:00, yearly Jan 1st 06:00.
   "triggers": {
-    "crons": ["17 */6 * * *", "43 18 * * *"]
+    "crons": ["17 */6 * * *", "43 18 * * *", "0 6 * * 1", "0 6 1 * *", "0 6 1 1 *"]
   },
 
   "d1_databases": [
@@ -66,7 +69,7 @@
   "env": {
     "staging": {
       "name": "iie-staging",
-      "vars": { "ENVIRONMENT": "staging", "AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "AI_INTENT_MODEL": "@cf/meta/llama-3.2-3b-instruct", "AI_EMBED_MODEL": "@cf/baai/bge-base-en-v1.5", "EMAIL_SENDER": "" },
+      "vars": { "ENVIRONMENT": "staging", "AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "AI_INTENT_MODEL": "@cf/meta/llama-3.2-3b-instruct", "AI_EMBED_MODEL": "@cf/baai/bge-base-en-v1.5", "EMAIL_SENDER": "", "TELEGRAM_BOT_TOKEN": "", "TELEGRAM_CHAT_ID": "" },
       "d1_databases": [{ "binding": "DB", "database_name": "iie-event-log-staging", "database_id": "15520eb0-7cef-411f-a318-203fdb57e190", "migrations_dir": "./migrations" }],
       "kv_namespaces": [{ "binding": "CONFIG", "id": "94de932c0f2a4cb396be99901c19d323" }, { "binding": "AUTH", "id": "ff1d3a75ae054e5f9f48e714162fdc2c" }],
       "ai": { "binding": "AI", "remote": true },
@@ -76,7 +79,7 @@
     },
     "production": {
       "name": "iie",
-      "vars": { "ENVIRONMENT": "production", "AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "AI_INTENT_MODEL": "@cf/meta/llama-3.2-3b-instruct", "AI_EMBED_MODEL": "@cf/baai/bge-base-en-v1.5", "EMAIL_SENDER": "" },
+      "vars": { "ENVIRONMENT": "production", "AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "AI_INTENT_MODEL": "@cf/meta/llama-3.2-3b-instruct", "AI_EMBED_MODEL": "@cf/baai/bge-base-en-v1.5", "EMAIL_SENDER": "", "TELEGRAM_BOT_TOKEN": "", "TELEGRAM_CHAT_ID": "" },
       "d1_databases": [{ "binding": "DB", "database_name": "iie-event-log", "database_id": "14cf9a00-3266-4edd-a224-d8411fd0daec", "migrations_dir": "./migrations" }],
       "kv_namespaces": [{ "binding": "CONFIG", "id": "214e349f1c33498bad6228092ba15338" }, { "binding": "AUTH", "id": "9a7fa7df166c4710a95d3e485201e50e" }],
       "ai": { "binding": "AI", "remote": true },

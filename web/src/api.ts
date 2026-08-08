@@ -86,6 +86,15 @@ export interface DepartmentInsight {
 	avg_leave_days: number | null;
 }
 
+export interface ReportData {
+	meta: { period: string; start: string; end: string; generated_at: string };
+	summary: { employees: number; events: number; leave_submitted: number; leave_completed: number; avg_leave_cycle_days: number | null; late_rate: number };
+	attendance: { clock_ins: number; late: number; late_rate: number; by_department: { department: string; clock_ins: number; late: number; late_rate: number }[] };
+	leave: { submitted: number; completed: number; rejected: number; cancelled: number; avg_cycle_days: number | null; by_type: { type: string; count: number }[] };
+	process: { flagged_bottlenecks: number; top_bottleneck: string | null; conformance_rate: number | null; variant_count: number };
+	recommendations: Recommendation[];
+}
+
 export interface ChatResponse {
 	reply: string;
 	intent: string;
@@ -211,4 +220,7 @@ export const api = {
 	adminSetStatus: (id: string, status: "active" | "disabled") => mut<unknown>(`/api/admin/users/${id}/status`, { status }),
 	adminProvision: () => mut<{ created: number; missingEmail: string[] }>("/api/admin/provision", {}),
 	adminAudit: () => get<{ entries: AuditEntry[] }>("/api/admin/audit"),
+	report: (period: string) => get<ReportData>(`/api/reports/${period}`),
+	reportCsvUrl: (period: string) => `/api/reports/${period}/csv`,
+	reportHtmlUrl: (period: string) => `/api/reports/${period}/html`,
 };
