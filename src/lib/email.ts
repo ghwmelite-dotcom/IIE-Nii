@@ -4,10 +4,11 @@
  * configured) it logs the code to observability instead of sending, so staging
  * and tests work before a verified sender domain exists (spec §7 risk).
  *
- * The production transport is intentionally a single integration point so the
- * rest of the system stays transport-agnostic. The concrete transport
- * (MailChannels vs a Cloudflare Email Routing send-worker binding) is confirmed
- * during the go-live task once a verified sender domain exists.
+ * Production transport is Resend (https://resend.com). It is a single
+ * integration point so the rest of the system stays transport-agnostic.
+ * Requires two config values in production:
+ *   - EMAIL_SENDER  (e.g. "OHCS IIE <no-reply@ohcsghana.org>") — a verified Resend sender
+ *   - RESEND_API_KEY (secret) — from the Resend dashboard
  */
 export async function sendOtpEmail(env: Env, to: string, code: string): Promise<void> {
 	// Fail-closed allowlist: ONLY these explicitly-named non-prod environments log
@@ -19,16 +20,16 @@ export async function sendOtpEmail(env: Env, to: string, code: string): Promise<
 		return;
 	}
 	if (!env.EMAIL_SENDER) throw new Error("EMAIL_SENDER must be configured to send OTP email in production");
-	const body = {
-		personalizations: [{ to: [{ email: to }] }],
-		from: { email: env.EMAIL_SENDER },
-		subject: "Your OHCS IIE sign-in code",
-		content: [{ type: "text/plain", value: `Your sign-in code is ${code}. It expires in 10 minutes.` }],
-	};
-	const res = await fetch("https://api.mailchannels.net/tx/v1/send", {
+	if (!env.RESEND_API_KEY) throw new Error("RESEND_API_KEY must be configured to send OTP email in production");
+	const res = await fetch("https://api.resend.com/emails", {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(body),
+		headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+		body: JSON.stringify({
+			from: env.EMAIL_SENDER,
+			to: [to],
+			subject: "Your OHCS IIE sign-in code",
+			text: `Your OHCS IIE sign-in code is ${code}. It expires in 10 minutes.\n\nIf you didn't request this, you can ignore this email.`,
+		}),
 	});
 	if (!res.ok) {
 		console.error(JSON.stringify({ message: "otp email failed", status: res.status }));
