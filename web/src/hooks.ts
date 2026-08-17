@@ -3,11 +3,12 @@ import { api } from "./api";
 import type { EventItem } from "./api";
 
 /** Poll an async loader immediately and every `ms`; keeps last good data on error. */
-export function usePoll<T>(fn: () => Promise<T>, ms: number, deps: unknown[] = []) {
+export function usePoll<T>(fn: () => Promise<T>, ms: number, deps: unknown[] = [], enabled = true) {
 	const [data, setData] = useState<T | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
+		if (!enabled) return;
 		let alive = true;
 		const load = () => {
 			fn()
@@ -25,7 +26,7 @@ export function usePoll<T>(fn: () => Promise<T>, ms: number, deps: unknown[] = [
 			clearInterval(id);
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, deps);
+	}, [enabled, ...deps]);
 
 	return { data, error };
 }

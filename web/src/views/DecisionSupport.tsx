@@ -3,6 +3,7 @@ import { api } from "../api";
 import type { ReportData } from "../api";
 import { usePoll } from "../hooks";
 import LoadError from "../components/LoadError";
+import { useAuth, can } from "../auth/AuthContext";
 
 const SEVERITY_STYLES: Record<string, string> = {
 	high: "border-l-red-500",
@@ -23,9 +24,12 @@ const LATE_RATE_SCALE = 0.25;
 const LEAVE_DAYS_SCALE = 10;
 
 export default function DecisionSupport() {
-	const recs = usePoll(api.recommendations, 30_000);
+	const { me } = useAuth();
+	const canIntel = me ? can(me, "intelligence.read") : false;
+
+	const recs = usePoll(api.recommendations, 30_000, [], canIntel);
 	const departments = usePoll(api.departmentInsights, 30_000);
-	const bottlenecks = usePoll(api.bottlenecks, 30_000);
+	const bottlenecks = usePoll(api.bottlenecks, 30_000, [], canIntel);
 
 	const [period, setPeriod] = useState<"weekly" | "monthly" | "yearly">("monthly");
 	const [report, setReport] = useState<ReportData | null>(null);
@@ -69,11 +73,11 @@ export default function DecisionSupport() {
 
 	return (
 		<div className="space-y-6">
-			<LoadError label="recommendations" error={recs.error && !recs.data ? recs.error : null} />
+			{canIntel && <LoadError label="recommendations" error={recs.error && !recs.data ? recs.error : null} />}
 			<LoadError label="department insights" error={departments.error && !departments.data ? departments.error : null} />
 
-			{/* Bottlenecks — rendered at the very top */}
-			{(() => {
+			{/* Bottlenecks — rendered at the very top, only for intelligence users */}
+			{canIntel && (() => {
 				const flagged = (bottlenecks.data?.bottlenecks ?? []).filter((b) => b.flagged);
 				const DAY = 86_400_000;
 				return flagged.length > 0 ? (
@@ -101,7 +105,7 @@ export default function DecisionSupport() {
 				<div className="no-print flex gap-2">
 					<button
 						onClick={downloadCsv}
-						disabled={!recs.data}
+						disabled={!departments.data}
 						className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
 					>
 						Download CSV
@@ -115,8 +119,8 @@ export default function DecisionSupport() {
 				</div>
 			</div>
 
-			{/* Top insight banner */}
-			{top && (
+			{/* Top insight banner — only for intelligence users */}
+			{canIntel && top && (
 				<div className="rounded-xl bg-slate-900 p-5 text-white shadow-md">
 					<div className="mb-1 flex items-center gap-2">
 						<span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${SEVERITY_BADGE[top.severity]}`}>{top.severity}</span>
@@ -211,21 +215,23 @@ export default function DecisionSupport() {
 				</section>
 			)}
 
-			{/* Remaining recommendations */}
-			<div className="grid gap-4 md:grid-cols-2">
-				{rest.map((r, i) => (
-					<div key={i} className={`rounded-xl border border-slate-200 border-l-4 bg-white p-4 shadow-sm ${SEVERITY_STYLES[r.severity]}`}>
-						<div className="mb-2 flex items-center gap-2">
-							<span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${SEVERITY_BADGE[r.severity]}`}>{r.severity}</span>
-							<span className="text-[10px] uppercase tracking-wide text-slate-500">{r.kind}</span>
+			{/* Remaining recommendations — only for intelligence users */}
+			{canIntel && (
+				<div className="grid gap-4 md:grid-cols-2">
+					{rest.map((r, i) => (
+						<div key={i} className={`rounded-xl border border-slate-200 border-l-4 bg-white p-4 shadow-sm ${SEVERITY_STYLES[r.severity]}`}>
+							<div className="mb-2 flex items-center gap-2">
+								<span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${SEVERITY_BADGE[r.severity]}`}>{r.severity}</span>
+								<span className="text-[10px] uppercase tracking-wide text-slate-500">{r.kind}</span>
+							</div>
+							<h3 className="font-semibold">{r.title}</h3>
+							<p className="mt-1 text-sm text-slate-600">{r.detail}</p>
 						</div>
-						<h3 className="font-semibold">{r.title}</h3>
-						<p className="mt-1 text-sm text-slate-600">{r.detail}</p>
-					</div>
-				))}
-			</div>
+					))}
+				</div>
+			)}
 
-			{sorted.length === 0 && recs.data && (
+			{canIntel && sorted.length === 0 && recs.data && (
 				<div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center text-emerald-800">
 					No issues detected in the latest mining run — processes look healthy.
 				</div>
