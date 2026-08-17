@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "../api";
 import { useAuth } from "../auth/AuthContext";
 
+const LAST_EMAIL_KEY = "iie_last_email";
+
 export default function SignIn() {
 	const { refresh } = useAuth();
-	const [email, setEmail] = useState("");
+	const [email, setEmail] = useState(() => localStorage.getItem(LAST_EMAIL_KEY) ?? "");
 	const [code, setCode] = useState("");
 	const [stage, setStage] = useState<"email" | "code">("email");
 	const [msg, setMsg] = useState<string | null>(null);
@@ -15,6 +17,7 @@ export default function SignIn() {
 		setMsg(null);
 		try {
 			await api.requestCode(email.trim());
+			localStorage.setItem(LAST_EMAIL_KEY, email.trim());
 			setStage("code");
 			setMsg("If that address is registered, a code is on its way.");
 		} catch {
@@ -48,6 +51,7 @@ export default function SignIn() {
 							value={email}
 							onChange={(e) => setEmail(e.target.value)}
 							type="email"
+							autoComplete="email"
 							placeholder="you@ohcs.gov.gh"
 							className="mb-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
 						/>
