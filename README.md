@@ -5,14 +5,11 @@
 > workflow, and an HR chatbot — mined automatically into the real process map,
 > bottlenecks, conformance findings, and management-ready recommendations.
 
-[![Live demo](https://img.shields.io/badge/demo-live%20on%20workers.dev-4f46e5)](https://iie.ghwmelite.workers.dev)
+[![Live demo](https://img.shields.io/badge/demo-live%20on%20ohcsghana.org-4f46e5)](https://iie.ohcsghana.org)
 [![Stack](https://img.shields.io/badge/stack-Cloudflare%20Workers%20%2B%20D1%20%2B%20Workers%20AI%20%2B%20Vectorize-f6821f)](https://workers.cloudflare.com/)
 [![Tests](https://img.shields.io/badge/tests-32%20passing-059669)](#testing--validation)
 
-**[Open the live demo →](https://iie.ghwmelite.workers.dev)** — seeded with 6
-months of simulated OHCS operations (150 staff across the 9 real OHCS units,
-~33,300 events). Explore the four views — Operations, Process Intelligence,
-Decision Support, and My Leave — plus the floating AI assistant.
+**[Open the live demo →](https://iie.ohcsghana.org)** — passwordless sign-in with 6-digit OTP. 11 test accounts cover every RBAC role from Employee to System Admin, seeded with 6 months of simulated OHCS operations (150 staff across the 9 real OHCS units, ~33,300 events). Explore the four views — Operations, Process Intelligence, Decision Support, and My Leave — plus the floating AI assistant.
 
 ![Operations dashboard — live event feed, attendance heatmap, leave pipeline](docs/images/dashboard-operations.png)
 
@@ -131,16 +128,30 @@ median, attendance above 12h; chatbot gaps are never flagged.
 
 ## Auth
 
-Machine-to-machine endpoints require the `API_KEY` secret sent as
-`x-api-key` (timing-safe comparison in `src/lib/auth.ts`):
+### User authentication (passwordless OTP)
+
+The dashboard now requires sign-in. Users enter their work email and receive a 6-digit one-time code via Resend (expires in 10 minutes, single-use). A signed session cookie (`iie_session`) grants access for 8 hours idle / 24 hours absolute.
+
+RBAC roles (`src/lib/rbac.ts`) gate access to system areas:
+
+| Role | Capabilities |
+|---|---|
+| `employee` | My Leave, AI assistant, own attendance |
+| `hr_admin` | All-staff attendance & leave, org directory |
+| `process_analyst` | Process Intelligence — mined map, bottlenecks, conformance |
+| `executive` | Decision Support + weekly/monthly/yearly Reports |
+| `system_admin` | Admin tab — user provisioning, role grants, audit log |
+
+Leave-approval eligibility is separate from RBAC and lives in `src/lib/workflow.ts` (enforced by the employee's `role` + `department_id`).
+
+### Machine-to-machine authentication
+
+Protected endpoints require the `API_KEY` secret sent as `x-api-key` (timing-safe SHA-256 comparison in `src/lib/auth.ts`):
 
 - `POST /api/events`, `POST /api/events/batch`
 - `POST /api/org/import`, `POST /api/chatbot/ingest`, `POST /api/intelligence/run`
 
-Everything else (reads, attendance/leave/chat user endpoints, the SPA) is open
-in this phase — per-user identity arrives with Cloudflare Access / SSO.
-Local: `.dev.vars` holds `API_KEY` (gitignored; `seed.mjs`/`validate.mjs` read
-it automatically). Production: `wrangler secret put API_KEY`.
+Local: `.dev.vars` holds `API_KEY` (gitignored; `seed.mjs`/`validate.mjs` read it automatically). Production: `wrangler secret put API_KEY`.
 
 ## Testing & validation
 
@@ -212,17 +223,17 @@ Models are configurable via `vars` in `wrangler.jsonc`.
 ## Deploy
 
 The platform is deployed and seeded at
-**[iie.ghwmelite.workers.dev](https://iie.ghwmelite.workers.dev)** (D1, KV,
-Vectorize, and R2 provisioned in the same account). Machine endpoints are
-API-key protected; user-facing endpoints are open until Cloudflare Access
-lands.
+**[iie.ohcsghana.org](https://iie.ohcsghana.org)** (D1, KV,
+Vectorize, R2, and Workers AI provisioned on the OHCS Cloudflare account).
+Machine endpoints are API-key protected; user-facing endpoints require
+passwordless OTP sign-in.
 
 To redeploy or deploy to your own account:
 
 ```sh
-wrangler secret put API_KEY   # set the production key first
-npm run deploy
-npm run seed -- --base https://iie.<your-subdomain>.workers.dev --key <key>
+wrangler secret put API_KEY --env production  # set the production key first
+npm run deploy -- --env production
+npm run seed -- --base https://iie.<your-domain> --key <key>
 ```
 
 ## Next phases
