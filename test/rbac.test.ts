@@ -15,8 +15,9 @@ describe("capability map", () => {
 		expect(caps.has("events.read.any")).toBe(true);
 	});
 
-	it("employee role grants no area capabilities", () => {
-		expect(capabilitiesFor(["employee"]).size).toBe(0);
+	it("employee role grants reports.read capability", () => {
+		expect(capabilitiesFor(["employee"]).has("reports.read")).toBe(true);
+		expect(capabilitiesFor(["employee"]).has("admin.users.manage")).toBe(false);
 	});
 
 	it("hasCapability checks a role list directly", () => {

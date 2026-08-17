@@ -4,6 +4,7 @@ import Intelligence from "./views/Intelligence";
 import DecisionSupport from "./views/DecisionSupport";
 import MyLeave from "./views/MyLeave";
 import Admin from "./views/Admin";
+import Attendance from "./views/Attendance";
 import ChatWidget from "./components/ChatWidget";
 import { useAuth, can } from "./auth/AuthContext";
 import SignIn from "./views/SignIn";
@@ -18,6 +19,18 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
+	{
+		id: "attendance",
+		label: "Attendance",
+		cap: null,
+		// Clock
+		icon: (
+			<svg {...ICON_PROPS}>
+				<circle cx="12" cy="13" r="8" strokeWidth={1.5} />
+				<path d="M12 9v4l2.5 1.5" strokeWidth={1.5} />
+			</svg>
+		),
+	},
 	{
 		id: "operations",
 		label: "System Overview",
@@ -46,7 +59,7 @@ const TABS: TabDef[] = [
 	{
 		id: "decision",
 		label: "Decision Support",
-		cap: "decision.read",
+		cap: "reports.read",
 		// Compass
 		icon: (
 			<svg {...ICON_PROPS}>
@@ -118,15 +131,12 @@ export default function App() {
 				</div>
 				<div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 shadow-lg shadow-slate-900/20">
 					<div className="mx-auto flex max-w-6xl items-center gap-3 px-4 pt-4">
-						{/* Brand mark: mined-process glyph */}
-						<div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 shadow-md shadow-indigo-950/60 ring-1 ring-white/20">
-							<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round">
-								<circle cx="5.5" cy="6" r="2.2" />
-								<circle cx="18.5" cy="6" r="2.2" />
-								<circle cx="12" cy="18" r="2.2" />
-								<path d="M7.5 7.4 10.3 16M16.5 7.4 13.7 16M7.7 6h8.6" strokeWidth="1.4" />
-							</svg>
-						</div>
+						{/* OHCS Logo — matches login page */}
+						<img
+							src="/ohcs-logo.png"
+							alt="Ghana Civil Service"
+							className="h-10 w-10 shrink-0 rounded-full object-cover shadow-md ring-1 ring-white/30"
+						/>
 						<div>
 							<h1 className="text-lg font-semibold leading-tight tracking-tight">Intelligent Integration Engine</h1>
 							<p className="text-[10.5px] font-medium uppercase tracking-[0.18em] text-slate-400">OHCS · Process Intelligence Platform</p>
@@ -164,6 +174,7 @@ export default function App() {
 				{activeTab === "decision" && <DecisionSupport />}
 				{activeTab === "leave" && <MyLeave />}
 				{activeTab === "admin" && <Admin />}
+				{activeTab === "attendance" && <Attendance />}
 			</main>
 
 			<ChatWidget />

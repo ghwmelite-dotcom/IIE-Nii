@@ -8,6 +8,25 @@ export interface Overview {
 	last_mining_run: string | null;
 }
 
+export interface AttendanceRecord {
+	record_id: string;
+	employee_id: string;
+	date: string;
+	clock_in: string | null;
+	clock_out: string | null;
+	status: string;
+}
+
+export interface AttendanceSummary {
+	employee_id: string;
+	name: string;
+	department_id: string;
+	total_days: number;
+	late_days: number;
+	missing_clockouts: number;
+	recent: AttendanceRecord[];
+}
+
 export interface AttendanceDay {
 	date: string;
 	clock_ins: number;
@@ -220,6 +239,7 @@ export const api = {
 	adminSetStatus: (id: string, status: "active" | "disabled") => mut<unknown>(`/api/admin/users/${id}/status`, { status }),
 	adminProvision: () => mut<{ created: number; missingEmail: string[] }>("/api/admin/provision", {}),
 	adminAudit: () => get<{ entries: AuditEntry[] }>("/api/admin/audit"),
+	attendanceSummary: (employeeId: string) => get<AttendanceSummary>(`/api/attendance/${encodeURIComponent(employeeId)}/summary`),
 	report: (period: string) => get<ReportData>(`/api/reports/${period}`),
 	reportCsvUrl: (period: string) => `/api/reports/${period}/csv`,
 	reportHtmlUrl: (period: string) => `/api/reports/${period}/html`,

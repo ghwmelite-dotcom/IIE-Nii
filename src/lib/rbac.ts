@@ -22,11 +22,11 @@ export type Capability =
 	| "config.manage";
 
 export const ROLE_CAPABILITIES: Record<RoleKey, Capability[]> = {
-	employee: [],
-	hr_admin: ["attendance.read.any", "leave.read.any", "leave.create.any", "org.read", "events.read.any"],
+	employee: ["reports.read"],
+	hr_admin: ["attendance.read.any", "leave.read.any", "leave.create.any", "org.read", "events.read.any", "reports.read"],
 	process_analyst: ["intelligence.read", "events.read.any"],
 	executive: ["decision.read", "reports.read", "intelligence.read"],
-	system_admin: ["admin.users.manage", "admin.roles.manage", "admin.audit.read", "config.manage", "org.read"],
+	system_admin: ["admin.users.manage", "admin.roles.manage", "admin.audit.read", "config.manage", "org.read", "reports.read", "intelligence.read"],
 };
 
 export function isRoleKey(value: string): value is RoleKey {
