@@ -1,12 +1,21 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../auth/AuthContext";
 
 const LAST_EMAIL_KEY = "iie_last_email";
+const REMEMBER_KEY = "iie_remember_email";
+
+function getSavedEmail(): string {
+	if (localStorage.getItem(REMEMBER_KEY) === "true") {
+		return localStorage.getItem(LAST_EMAIL_KEY) ?? "";
+	}
+	return "";
+}
 
 export default function SignIn() {
 	const { refresh } = useAuth();
-	const [email, setEmail] = useState(() => localStorage.getItem(LAST_EMAIL_KEY) ?? "");
+	const [email, setEmail] = useState(getSavedEmail);
+	const [remember, setRemember] = useState(localStorage.getItem(REMEMBER_KEY) === "true");
 	const [code, setCode] = useState("");
 	const [stage, setStage] = useState<"email" | "code">("email");
 	const [msg, setMsg] = useState<string | null>(null);
@@ -17,7 +26,13 @@ export default function SignIn() {
 		setMsg(null);
 		try {
 			await api.requestCode(email.trim());
-			localStorage.setItem(LAST_EMAIL_KEY, email.trim());
+			if (remember) {
+				localStorage.setItem(LAST_EMAIL_KEY, email.trim());
+				localStorage.setItem(REMEMBER_KEY, "true");
+			} else {
+				localStorage.removeItem(LAST_EMAIL_KEY);
+				localStorage.setItem(REMEMBER_KEY, "false");
+			}
 			setStage("code");
 			setMsg("If that address is registered, a code is on its way.");
 		} catch {
@@ -53,8 +68,17 @@ export default function SignIn() {
 							type="email"
 							autoComplete="email"
 							placeholder="you@ohcs.gov.gh"
-							className="mb-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+							className="mb-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
 						/>
+						<label className="mb-3 flex cursor-pointer items-center gap-2 text-xs text-slate-600">
+							<input
+								type="checkbox"
+								checked={remember}
+								onChange={(e) => setRemember(e.target.checked)}
+								className="h-3.5 w-3.5 rounded border-slate-300 text-slate-900 accent-slate-900"
+							/>
+							Remember my email
+						</label>
 						<button
 							onClick={sendCode}
 							disabled={busy || !email}
