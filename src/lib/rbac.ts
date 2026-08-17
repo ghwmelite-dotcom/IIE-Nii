@@ -22,7 +22,7 @@ export type Capability =
 	| "config.manage";
 
 export const ROLE_CAPABILITIES: Record<RoleKey, Capability[]> = {
-	employee: ["reports.read"],
+	employee: [],
 	hr_admin: ["attendance.read.any", "leave.read.any", "leave.create.any", "org.read", "events.read.any", "reports.read", "intelligence.read"],
 	process_analyst: ["intelligence.read", "events.read.any"],
 	executive: ["decision.read", "reports.read", "intelligence.read"],
