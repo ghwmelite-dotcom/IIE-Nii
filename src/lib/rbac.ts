@@ -23,7 +23,7 @@ export type Capability =
 
 export const ROLE_CAPABILITIES: Record<RoleKey, Capability[]> = {
 	employee: ["reports.read"],
-	hr_admin: ["attendance.read.any", "leave.read.any", "leave.create.any", "org.read", "events.read.any", "reports.read"],
+	hr_admin: ["attendance.read.any", "leave.read.any", "leave.create.any", "org.read", "events.read.any", "reports.read", "intelligence.read"],
 	process_analyst: ["intelligence.read", "events.read.any"],
 	executive: ["decision.read", "reports.read", "intelligence.read"],
 	system_admin: ["admin.users.manage", "admin.roles.manage", "admin.audit.read", "config.manage", "org.read", "reports.read", "intelligence.read"],

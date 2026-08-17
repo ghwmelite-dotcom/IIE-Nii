@@ -20,6 +20,17 @@ interface TabDef {
 
 const TABS: TabDef[] = [
 	{
+		id: "operations",
+		label: "System Overview",
+		cap: null,
+		// Activity pulse
+		icon: (
+			<svg {...ICON_PROPS}>
+				<path d="M3 12h4l2.5-7 4 14 2.5-7H21" />
+			</svg>
+		),
+	},
+	{
 		id: "attendance",
 		label: "Attendance",
 		cap: null,
@@ -28,17 +39,6 @@ const TABS: TabDef[] = [
 			<svg {...ICON_PROPS}>
 				<circle cx="12" cy="13" r="8" strokeWidth={1.5} />
 				<path d="M12 9v4l2.5 1.5" strokeWidth={1.5} />
-			</svg>
-		),
-	},
-	{
-		id: "operations",
-		label: "System Overview",
-		cap: null,
-		// Activity pulse
-		icon: (
-			<svg {...ICON_PROPS}>
-				<path d="M3 12h4l2.5-7 4 14 2.5-7H21" />
 			</svg>
 		),
 	},
