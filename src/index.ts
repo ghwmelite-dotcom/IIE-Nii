@@ -66,6 +66,36 @@ app.post("/api/events/batch", apiKeyAuth, async (c) => {
 	const events = parsed.data.map(toStoredEvent);
 	await insertEvents(c.env.DB, events);
 
+	// Sync attendance events into attendance_records so the seed script
+	// populates the attendance portal without calling /clock-in /clock-out.
+	for (const raw of parsed.data) {
+		if (raw.source_system !== "ATTENDANCE") continue;
+		const date = (raw.timestamp ?? new Date().toISOString()).slice(0, 10);
+		const employeeId = raw.resource;
+		const emp = await c.env.DB.prepare("SELECT 1 FROM employees WHERE employee_id = ?").bind(employeeId).first();
+		if (!emp) continue; // skip test data with non-existent employees
+		if (raw.activity === "clock_in") {
+			const late = (raw.metadata as Record<string, unknown>)?.late === true;
+			const status = late ? "late" : "present";
+			const recordId = crypto.randomUUID();
+			await c.env.DB.prepare(
+				`INSERT INTO attendance_records (record_id, employee_id, date, clock_in, status)
+				 VALUES (?, ?, ?, ?, ?)
+				 ON CONFLICT(employee_id, date) DO UPDATE SET
+				   clock_in = excluded.clock_in,
+				   status = excluded.status`,
+			)
+				.bind(recordId, employeeId, date, raw.timestamp ?? new Date().toISOString(), status)
+				.run();
+		} else if (raw.activity === "clock_out") {
+			await c.env.DB.prepare(
+				`UPDATE attendance_records SET clock_out = ? WHERE employee_id = ? AND date = ?`,
+			)
+				.bind(raw.timestamp ?? new Date().toISOString(), employeeId, date)
+				.run();
+		}
+	}
+
 	console.log(JSON.stringify({ message: "event batch ingested", count: events.length }));
 	return c.json({ ingested: events.length, event_ids: events.map((e) => e.event_id) }, 201);
 });

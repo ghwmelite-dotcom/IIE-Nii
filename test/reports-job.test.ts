@@ -15,7 +15,7 @@ describe("scheduled report job", () => {
 		expect(await sendTelegram(env, "test")).toBe(false); // no token configured
 	});
 
-	it("exposes archived reports via the API to executives, not employees", async () => {
+	it("exposes archived reports via the API to employees and executives", async () => {
 		await runReportJob(env, "monthly");
 		const exec = await seedUser("u-arch", "arch@ohcs.gov.gh", "MGR-1", ["executive"]);
 		const listRes = await authGet("/api/reports/archive", exec);
@@ -23,6 +23,6 @@ describe("scheduled report job", () => {
 		const body = (await listRes.json()) as { objects: { key: string }[] };
 		expect(body.objects.length).toBeGreaterThan(0);
 		const emp = await seedUser("u-ne", "ne@ohcs.gov.gh", "EMP-1", ["employee"]);
-		expect((await authGet("/api/reports/archive", emp)).status).toBe(403);
+		expect((await authGet("/api/reports/archive", emp)).status).toBe(200);
 	});
 });

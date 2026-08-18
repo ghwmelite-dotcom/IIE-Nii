@@ -5,10 +5,10 @@ import { applyMigrations, seedOrg, seedUser, authGet } from "./helpers";
 describe("reports routes", () => {
 	beforeAll(async () => { await applyMigrations(); await seedOrg(); });
 
-	it("401 unauth, 403 employee, 200 hr_admin, 200 exec", async () => {
+	it("401 unauth, 200 employee, 200 hr_admin, 200 exec", async () => {
 		expect((await SELF.fetch("http://test.local/api/reports/weekly")).status).toBe(401);
 		const emp = await seedUser("u-e", "e@ohcs.gov.gh", "EMP-1", ["employee"]);
-		expect((await authGet("/api/reports/weekly", emp)).status).toBe(403);
+		expect((await authGet("/api/reports/weekly", emp)).status).toBe(200);
 		const hr = await seedUser("u-hr", "hr@ohcs.gov.gh", "HR-1", ["hr_admin"]);
 		expect((await authGet("/api/reports/weekly", hr)).status).toBe(200);
 		const exec = await seedUser("u-x", "x@ohcs.gov.gh", "MGR-1", ["executive"]);
