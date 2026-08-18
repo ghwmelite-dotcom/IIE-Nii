@@ -23,12 +23,15 @@ const SEVERITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
 const LATE_RATE_SCALE = 0.25;
 const LEAVE_DAYS_SCALE = 10;
 
+const ELEVATED_ROLES = new Set(["hr_admin", "executive", "process_analyst", "system_admin"]);
+
 export default function DecisionSupport() {
 	const { me } = useAuth();
 	const canIntel = me ? can(me, "intelligence.read") : false;
+	const isGlobal = me ? me.roles.some((r) => ELEVATED_ROLES.has(r)) : false;
 
 	const recs = usePoll(api.recommendations, 30_000, [], canIntel);
-	const departments = usePoll(api.departmentInsights, 30_000);
+	const departments = usePoll(api.departmentInsights, 30_000, [], isGlobal);
 	const bottlenecks = usePoll(api.bottlenecks, 30_000, [], canIntel);
 
 	const [period, setPeriod] = useState<"weekly" | "monthly" | "yearly">("monthly");
@@ -74,7 +77,7 @@ export default function DecisionSupport() {
 	return (
 		<div className="space-y-6">
 			{canIntel && <LoadError label="recommendations" error={recs.error && !recs.data ? recs.error : null} />}
-			<LoadError label="department insights" error={departments.error && !departments.data ? departments.error : null} />
+			{isGlobal && <LoadError label="department insights" error={departments.error && !departments.data ? departments.error : null} />}
 
 			{/* Bottlenecks — rendered at the very top, only for intelligence users */}
 			{canIntel && (() => {
@@ -97,27 +100,29 @@ export default function DecisionSupport() {
 				) : null;
 			})()}
 
-			<div className="flex flex-wrap items-start gap-3">
-				<p className="flex-1 text-sm text-slate-500">
-					Rule-generated from the latest bottleneck, conformance, and variant analysis
-					{recs.data ? ` (${new Date(recs.data.generated_at).toLocaleString()})` : ""}. The AI narrative layer arrives in a later phase.
-				</p>
-				<div className="no-print flex gap-2">
-					<button
-						onClick={downloadCsv}
-						disabled={!departments.data}
-						className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-					>
-						Download CSV
-					</button>
-					<button
-						onClick={() => window.print()}
-						className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-					>
-						Print / Save as PDF
-					</button>
+			{isGlobal && (
+				<div className="flex flex-wrap items-start gap-3">
+					<p className="flex-1 text-sm text-slate-500">
+						Rule-generated from the latest bottleneck, conformance, and variant analysis
+						{recs.data ? ` (${new Date(recs.data.generated_at).toLocaleString()})` : ""}. The AI narrative layer arrives in a later phase.
+					</p>
+					<div className="no-print flex gap-2">
+						<button
+							onClick={downloadCsv}
+							disabled={!departments.data}
+							className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+						>
+							Download CSV
+						</button>
+						<button
+							onClick={() => window.print()}
+							className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+						>
+							Print / Save as PDF
+						</button>
+					</div>
 				</div>
-			</div>
+			)}
 
 			{/* Top insight banner — only for intelligence users */}
 			{canIntel && top && (
@@ -134,7 +139,7 @@ export default function DecisionSupport() {
 			{/* Reports section */}
 			<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 				<div className="mb-3 flex flex-wrap items-center gap-2">
-					<h2 className="text-sm font-semibold text-slate-700">Reports</h2>
+					<h2 className="text-sm font-semibold text-slate-700">{isGlobal ? "Reports" : "My Report"}</h2>
 					<select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} className="rounded-md border border-slate-300 px-2 py-1 text-xs">
 						<option value="weekly">Weekly</option>
 						<option value="monthly">Monthly</option>
@@ -149,14 +154,13 @@ export default function DecisionSupport() {
 				{report && (
 					<div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
 						{[
-							["Employees", report.summary.employees],
+							[isGlobal ? "Employees" : "Personal record", report.summary.employees],
 							["Events", report.summary.events],
 							["Leave submitted", report.summary.leave_submitted],
 							["Leave completed", report.summary.leave_completed],
 							["Avg leave cycle", report.summary.avg_leave_cycle_days != null ? `${report.summary.avg_leave_cycle_days.toFixed(1)}d` : "—"],
 							["Late rate", `${Math.round(report.summary.late_rate * 100)}%`],
-							["Flagged bottlenecks", report.process.flagged_bottlenecks],
-							["Conformance", report.process.conformance_rate != null ? `${Math.round(report.process.conformance_rate * 100)}%` : "—"],
+							...(isGlobal ? [["Flagged bottlenecks", report.process.flagged_bottlenecks], ["Conformance", report.process.conformance_rate != null ? `${Math.round(report.process.conformance_rate * 100)}%` : "—"]] : []),
 						].map(([label, value]) => (
 							<div key={String(label)} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
 								<div className="text-[11px] uppercase tracking-wide text-slate-400">{label}</div>
@@ -165,11 +169,15 @@ export default function DecisionSupport() {
 						))}
 					</div>
 				)}
-				<p className="mt-2 text-[11px] text-slate-400">Windows are rolling (last 7 / 30 / 365 days). Scheduled reports are archived and pushed to Telegram automatically.</p>
+				<p className="mt-2 text-[11px] text-slate-400">
+					{isGlobal
+						? "Windows are rolling (last 7 / 30 / 365 days). Scheduled reports are archived and pushed to Telegram automatically."
+						: "Your personal attendance and leave summary for the selected period."}
+				</p>
 			</section>
 
-			{/* Department comparison */}
-			{depts.length > 0 && (
+			{/* Department comparison — global only */}
+			{isGlobal && depts.length > 0 && (
 				<section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 					<h2 className="mb-1 text-sm font-semibold text-slate-700">Department comparison</h2>
 					<p className="mb-4 text-xs text-slate-400">

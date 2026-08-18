@@ -1,10 +1,12 @@
-import { buildReport, type ReportPeriod } from "../lib/reports";
+import { buildReport, type ReportPeriod, type ReportUserContext } from "../lib/reports";
 import { reportToCsv } from "../lib/report-csv";
 import { reportToHtml } from "../lib/report-html";
 import { sendTelegram } from "../lib/telegram";
 
+const SYSTEM_CTX: ReportUserContext = { user_id: "system", employee_id: null, roles: ["system_admin"] };
+
 export async function runReportJob(env: Env, period: ReportPeriod): Promise<{ archived: string[] }> {
-	const data = await buildReport(env, period);
+	const data = await buildReport(env, period, SYSTEM_CTX);
 	const date = data.meta.end.slice(0, 10);
 	const csvKey = `reports/${period}/${date}.csv`;
 	const htmlKey = `reports/${period}/${date}.html`;

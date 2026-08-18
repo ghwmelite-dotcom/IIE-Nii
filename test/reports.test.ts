@@ -5,6 +5,9 @@ import { buildReport } from "../src/lib/reports";
 
 const REF = "2026-03-10T00:00:00Z"; // window end; weekly window = [2026-03-03, 2026-03-10)
 
+const globalCtx = { user_id: "u-test", employee_id: null as string | null, roles: ["hr_admin"] };
+const personalCtx = { user_id: "u-emp1", employee_id: "EMP-1", roles: ["employee"] };
+
 describe("report aggregation", () => {
 	beforeAll(async () => {
 		await applyMigrations();
@@ -29,8 +32,8 @@ describe("report aggregation", () => {
 		]);
 	});
 
-	it("aggregates the weekly window deterministically", async () => {
-		const r = await buildReport(env, "weekly", REF);
+	it("aggregates the weekly window deterministically (global scope)", async () => {
+		const r = await buildReport(env, "weekly", globalCtx, REF);
 		expect(r.meta.period).toBe("weekly");
 		expect(r.meta.start.slice(0, 10)).toBe("2026-03-03");
 		expect(r.meta.end.slice(0, 10)).toBe("2026-03-10");
@@ -47,8 +50,20 @@ describe("report aggregation", () => {
 		expect(typeof r.process.flagged_bottlenecks).toBe("number");
 	});
 
+	it("scopes to personal view for staff (employee role only)", async () => {
+		const r = await buildReport(env, "weekly", personalCtx, REF);
+		expect(r.summary.employees).toBe(1);
+		expect(r.summary.events).toBe(2); // only EMP-1 events
+		expect(r.attendance.clock_ins).toBe(1); // EMP-1 has 1 attendance record
+		expect(r.leave.submitted).toBe(1); // EMP-1 has 1 leave request
+		expect(r.attendance.by_department).toHaveLength(0);
+		expect(r.recommendations).toHaveLength(0);
+		expect(r.process.flagged_bottlenecks).toBe(0);
+		expect(r.process.conformance_rate).toBeNull();
+	});
+
 	it("supports monthly and yearly windows", async () => {
-		expect((await buildReport(env, "monthly", REF)).meta.period).toBe("monthly");
-		expect((await buildReport(env, "yearly", REF)).meta.period).toBe("yearly");
+		expect((await buildReport(env, "monthly", globalCtx, REF)).meta.period).toBe("monthly");
+		expect((await buildReport(env, "yearly", globalCtx, REF)).meta.period).toBe("yearly");
 	});
 });
