@@ -137,6 +137,12 @@ RBAC roles (`src/lib/rbac.ts`) gate access to system areas:
 | Role | Capabilities |
 |---|---|
 | `employee` | My Leave, AI assistant, own attendance |
+| `hr_admin` | Decision Support, Process Intelligence, Reports, All-staff attendance & leave, org directory |
+| `process_analyst` | Process Intelligence — mined map, bottlenecks, conformance |
+| `executive` | Decision Support, Process Intelligence, Reports |
+| `system_admin` | Admin tab — user provisioning, role grants, audit log |
+|---|---|
+| `employee` | My Leave, AI assistant, own attendance |
 | `hr_admin` | All-staff attendance & leave, org directory |
 | `process_analyst` | Process Intelligence — mined map, bottlenecks, conformance |
 | `executive` | Decision Support + weekly/monthly/yearly Reports |
